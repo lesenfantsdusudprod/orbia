@@ -46,6 +46,67 @@ export function createBackend({ props = {} } = {}) {
       createTextOutput: (text) => ({ text, setMimeType() { return this; } })
     }
   };
+  // Drive et Sheets en mémoire
+  let ids = 0;
+  const newId = (k) => `${k}-${++ids}`;
+  const drive = { folders: new Map(), files: new Map(), books: new Map(), triggers: [], failNext: null };
+  const maybeFail = (op) => { if (drive.failNext === op) { drive.failNext = null; throw new Error('Panne simulée: ' + op); } };
+  const iterator = (list) => { let i = 0; return { hasNext: () => i < list.length, next: () => list[i++] }; };
+  const makeFile = (name, parent, mime, bookId) => {
+    const file = { id: bookId || newId('file'), name, parent, mime, access: 'PRIVATE',
+      getId() { return this.id; }, getName() { return this.name; }, getUrl() { return 'https://drive.test/' + this.id; }, getSharingAccess() { return this.access; },
+      moveTo(folder) { this.parent = folder.id; },
+      makeCopy(n, folder) { const nb = newId('book'); drive.books.set(nb, makeBook(nb, structuredClone(drive.books.get(this.id).tabs))); const c = makeFile(n, folder.id, 'sheet', nb); return c; } };
+    drive.files.set(file.id, file);
+    return file;
+  };
+  const makeFolder = (name, parent) => {
+    const folder = { id: newId('folder'), name, parent, access: 'PRIVATE',
+      getId() { return this.id; }, getUrl() { return 'https://drive.test/' + this.id; }, getSharingAccess() { return this.access; },
+      createFolder(n) { maybeFail('createFolder:' + n); return makeFolder(n, this.id); },
+      getFoldersByName(n) { return iterator([...drive.folders.values()].filter((f) => f.parent === this.id && f.name === n)); },
+      createFile(n, content, mime) { const f = makeFile(n, this.id, mime); f.content = content; return f; },
+      getFilesByType(type) { return iterator([...drive.files.values()].filter((f) => f.parent === this.id && f.mime === type)); } };
+    drive.folders.set(folder.id, folder);
+    return folder;
+  };
+  const makeSheet = (tabs, name) => ({
+    get grid() { return tabs[name]; },
+    getName: () => name,
+    setName(n) { tabs[n] = tabs[name]; delete tabs[name]; name = n; },
+    getLastColumn() { return Math.max(0, ...this.grid.map((r) => r.length)); },
+    getLastRow() { return this.grid.length; },
+    setFrozenRows() {},
+    appendRow(row) { this.grid.push(row); },
+    getRange(r, c, nr, nc) { const g = () => this.grid; return {
+      getValues: () => Array.from({ length: nr }, (_, i) => Array.from({ length: nc }, (_, j) => g()[r - 1 + i]?.[c - 1 + j] ?? '')),
+      setValues: (vals) => vals.forEach((row, i) => row.forEach((v, j) => { (g()[r - 1 + i] ??= [])[c - 1 + j] = v; })),
+      clearContent: () => { g().length = r - 1; } }; }
+  });
+  const makeBook = (id, tabs) => ({ id, tabs,
+    getId: () => id,
+    getSheets: () => Object.keys(tabs).map((n) => makeSheet(tabs, n)),
+    getSheetByName: (n) => (tabs[n] ? makeSheet(tabs, n) : null),
+    insertSheet(n) { maybeFail('insertSheet:' + n); tabs[n] = []; return makeSheet(tabs, n); } });
+  sandbox.MimeType = { GOOGLE_SHEETS: 'sheet' };
+  sandbox.DriveApp = {
+    Access: { PRIVATE: 'PRIVATE', ANYONE: 'ANYONE' },
+    createFolder: (n) => makeFolder(n, 'drive-root'),
+    getRootFolder: () => ({}),
+    getFolderById: (id) => drive.folders.get(id),
+    getFileById: (id) => drive.files.get(id)
+  };
+  sandbox.SpreadsheetApp = {
+    create(name) { const id = newId('book'); const b = makeBook(id, { 'Feuille 1': [] }); drive.books.set(id, b); makeFile(name, 'drive-root', 'sheet', id); return b; },
+    openById: (id) => drive.books.get(id),
+    getActiveSpreadsheet: () => null
+  };
+  const builder = (handler) => { const chain = { timeBased: () => chain, everyDays: () => chain, onMonthDay: () => chain, atHour: () => chain, create() { drive.triggers.push(handler); } }; return chain; };
+  sandbox.ScriptApp = {
+    getProjectTriggers: () => drive.triggers.map((h) => ({ getHandlerFunction: () => h })),
+    newTrigger: builder
+  };
+
   const ctx = vm.createContext(sandbox);
   const dir = new URL('../backend/', import.meta.url);
   for (const f of readdirSync(dir).filter((x) => x.endsWith('.gs')).sort()) {
@@ -56,5 +117,5 @@ export function createBackend({ props = {} } = {}) {
   const issue = (claims) => { const t = `test-token-${++seq}-`.padEnd(40, 'x'); tokens.set(t, claims); return t; };
   const post = (body) => JSON.parse(sandbox.doPost({ postData: { contents: typeof body === 'string' ? body : JSON.stringify(body) } }).text);
   const call = (email, action, payload) => post({ idToken: issue(claimsFor(email)), action, payload });
-  return { store, state, issue, post, call, sandbox, tokens };
+  return { store, state, issue, post, call, sandbox, tokens, drive };
 }

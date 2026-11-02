@@ -65,5 +65,23 @@ Sans compte payant, GitHub Pages exige un dépôt public.
 - **Signature des jetons** : Apps Script ne sait pas vérifier une signature RS256. Orbia fait vérifier le jeton par le service `tokeninfo` de Google, ce qui ajoute un appel réseau, mis en cache 5 minutes par jeton.
 - **Reconnexion** : le jeton reste en mémoire. Recharger la page relance la connexion, souvent automatique.
 - **En-têtes de sécurité** : GitHub Pages n'en permet pas. La politique de sécurité est dans la page, et l'affichage dans un cadre est bloqué par script.
-- **Journal** : 100 événements dans les propriétés de script. Le journal durable arrive avec le classeur, en A2.
-- **Liste des utilisateurs et configuration** : provisoirement dans les propriétés de script, puis déplacées vers le classeur en A2.
+- **Journal** : les 100 derniers événements restent visibles dans Orbia, et l'historique complet va dans l'onglet `AuditLog` du classeur.
+- **Utilisateurs et configuration** : la source reste côté serveur, volontairement. Une modification à la main dans le classeur ne donne aucun droit. Les onglets `Users` et `Settings` n'en sont qu'une copie.
+
+## Mise à jour vers A2
+
+1. Dans Apps Script, remplacez tout `Code.gs` par `dist/Orbia_backend.gs`, puis enregistrez.
+2. Lancez `orbiaCheckSetup` et acceptez les nouvelles autorisations (Drive, Sheets, tâches planifiées).
+3. **Déployer > Gérer les déploiements**, crayon, **Nouvelle version**, **Déployer**. Vérifiez que l'accès reste **Tout le monde**.
+4. Dans Orbia, **Réglages > Stockage**, cliquez sur **Créer l'espace Orbia**.
+
+| Test A2 | Résultat attendu |
+|---|---|
+| Cliquer sur **Créer l'espace Orbia** | Dossier `Orbia` dans Drive, avec le classeur et les 7 sous-dossiers |
+| Cliquer sur **Vérifier la structure** | Aucun doublon, aucune donnée modifiée |
+| Cliquer sur **Sauvegarder maintenant** | Un classeur et un fichier JSON dans `07_Sauvegardes` |
+| Cliquer sur **Tester la dernière sauvegarde** | « Réussi » |
+| Renommer une colonne du classeur, puis vérifier la structure | Message d'alerte, puis remettre le nom d'origine |
+| Se connecter en collaborateur | Pas d'onglet Stockage |
+
+Une restauration fait basculer Orbia sur une copie de la sauvegarde. L'ancien classeur reste dans Drive.

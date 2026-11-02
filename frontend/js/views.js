@@ -30,6 +30,7 @@ export function moreView(session, links) {
 function settingsTabs(session, active) {
   const tabs = [['#/reglages', 'Société']];
   if (can(session, 'users:manage')) tabs.push(['#/reglages/utilisateurs', 'Utilisateurs']);
+  if (can(session, 'storage:manage')) tabs.push(['#/reglages/stockage', 'Stockage']);
   if (can(session, 'logs:read')) tabs.push(['#/reglages/journal', 'Journal']);
   return h('nav', { class: 'subnav', 'aria-label': 'Réglages' },
     tabs.map(([href, label]) => h('a', { href, 'aria-current': href === active ? 'page' : null }, label)));
@@ -164,4 +165,73 @@ export async function logsView(session) {
             h('p', { class: 'log-meta' }, [dateTime(e.at), e.actor, e.source === 'client' ? 'navigateur' : null, `réf. ${e.correlationId.slice(0, 8)}`].filter(Boolean).join(', ')));
         })))
   ];
+}
+
+const STATE = (ok, yes, no) => h('span', { class: `status ${ok ? 'status-ok' : 'status-warn'}` }, ok ? yes : no);
+const checkRow = (label, state) => h('div', { class: 'row' }, h('p', { class: 'row-main' }, label), state);
+
+export async function storageView(session) {
+  const slot = h('div', { class: 'form' });
+  const message = h('p', { role: 'status' });
+  const say = (text, ok) => { message.className = ok ? 'form-ok' : 'form-error'; message.textContent = text; };
+
+  async function run(button, action, payload, done, pending) {
+    button.disabled = true;
+    say(pending, true);
+    try {
+      draw(await api(action, payload));
+      say(done, true);
+    } catch (err) {
+      say(err.message, false);
+      button.disabled = false;
+    }
+  }
+
+  function restoreBlock(status) {
+    const select = h('select', { name: 'backup', 'aria-label': 'Sauvegarde à restaurer' }, status.backups.map((b) => h('option', { value: b.id }, b.name.replace('Orbia_sauvegarde_', '').replace('T', ' à '))));
+    const confirm = h('input', { type: 'checkbox' });
+    const button = h('button', { class: 'btn btn-ghost', disabled: true, onclick: () => run(button, 'storage.restore', { backupId: select.value, confirm: 'RESTAURER' }, 'Sauvegarde restaurée. L’ancien classeur reste dans Drive.', 'Restauration en cours') }, 'Restaurer cette sauvegarde');
+    confirm.addEventListener('change', () => { button.disabled = !confirm.checked; });
+    return h('section', { class: 'card form' },
+      h('h2', {}, 'Restaurer'),
+      h('p', { class: 'muted' }, 'Orbia repartira d’une copie de cette sauvegarde. Une sauvegarde de l’état actuel est faite avant, et rien n’est supprimé.'),
+      field('Sauvegarde', select),
+      h('label', { class: 'check' }, confirm, 'Je veux revenir à cette sauvegarde'),
+      h('div', { class: 'form-foot' }, button));
+  }
+
+  function draw(status) {
+    if (!status.ready) {
+      const button = h('button', { class: 'btn', onclick: () => run(button, 'storage.init', undefined, 'Espace Orbia créé.', 'Création en cours, cela peut prendre une minute') }, status.partial ? 'Reprendre la création' : 'Créer l’espace Orbia');
+      slot.replaceChildren(h('section', { class: 'card form' },
+        h('h2', {}, 'Espace de stockage'),
+        h('p', { class: 'muted' }, 'Orbia va créer un dossier Drive privé et un classeur dans ce compte Google. Il ne touche à aucun fichier existant.'),
+        h('div', { class: 'form-foot' }, button), message));
+      return;
+    }
+    const check = h('button', { class: 'btn btn-ghost', onclick: () => run(check, 'storage.init', undefined, 'Structure vérifiée.', 'Vérification en cours') }, 'Vérifier la structure');
+    const backup = h('button', { class: 'btn', onclick: () => run(backup, 'storage.backup', undefined, 'Sauvegarde créée.', 'Sauvegarde en cours') }, 'Sauvegarder maintenant');
+    const test = h('button', { class: 'btn btn-ghost', disabled: status.backups.length === 0, onclick: () => run(test, 'storage.restoreTest', undefined, 'Test de restauration terminé.', 'Test en cours') }, 'Tester la dernière sauvegarde');
+    const lastTest = status.lastRestoreTest;
+    slot.replaceChildren(
+      h('section', { class: 'card' },
+        h('h2', {}, 'Espace de stockage'),
+        h('div', {},
+          checkRow('Dossier et classeur privés', STATE(status.isPrivate, 'Privés', 'Partagés : à vérifier')),
+          checkRow('Sauvegarde quotidienne', STATE(status.automaticBackups, 'Active', 'Inactive')),
+          checkRow('Test mensuel de restauration', STATE(status.monthlyRestoreTest, 'Actif', 'Inactif')),
+          checkRow('Dernière sauvegarde', h('span', { class: 'muted' }, status.lastBackup ? dateTime(status.lastBackup.at) : 'Aucune')),
+          checkRow('Dernier test', lastTest ? STATE(lastTest.ok, `Réussi, ${dateTime(lastTest.at)}`, 'Échec, voir le journal') : h('span', { class: 'muted' }, 'Aucun'))),
+        h('div', { class: 'form-foot' },
+          h('a', { class: 'btn btn-ghost', href: status.folderUrl, target: '_blank', rel: 'noopener noreferrer' }, 'Ouvrir le dossier Drive'),
+          h('a', { class: 'btn btn-ghost', href: status.spreadsheetUrl, target: '_blank', rel: 'noopener noreferrer' }, 'Ouvrir le classeur'))),
+      h('section', { class: 'card form' },
+        h('h2', {}, 'Sauvegardes'),
+        h('div', { class: 'form-foot' }, backup, test, check), message),
+      status.backups.length > 0 && restoreBlock(status));
+    slot.replaceChildren(...[...slot.children].filter(Boolean));
+  }
+
+  draw(await api('storage.status'));
+  return [head('Réglages'), settingsTabs(session, '#/reglages/stockage'), slot];
 }

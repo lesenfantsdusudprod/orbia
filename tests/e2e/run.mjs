@@ -104,6 +104,7 @@ const backend = createBackend();
   await page.goto(origin + '#/reglages');
   await page.getByLabel('Raison sociale').waitFor();
   assert.equal(await page.getByRole('link', { name: 'Utilisateurs' }).count(), 0);
+  assert.equal(await page.getByRole('link', { name: 'Stockage' }).count(), 0);
   assert.equal(await page.getByRole('button', { name: 'Enregistrer la société' }).count(), 0);
   await page.goto(origin + '#/plus');
   await page.getByRole('link', { name: 'Comptabilité' }).waitFor();
@@ -123,6 +124,28 @@ const backend = createBackend();
   await s.page.getByRole('button', { name: 'Enregistrer la société' }).click();
   await s.page.getByRole('heading', { name: 'Accès refusé' }).waitFor();
   await s.context.close();
+}
+
+// Stockage : création, sauvegarde, test, restauration depuis l'interface
+{
+  const b = createBackend();
+  const { page, problems, context } = await session(b, 'admin@example.test', DESK);
+  await page.getByRole('heading', { name: 'Bonjour !' }).waitFor();
+  await page.goto(origin + '#/reglages/stockage');
+  await page.getByRole('button', { name: 'Créer l’espace Orbia' }).click();
+  await page.getByText('Espace Orbia créé.').waitFor();
+  await page.getByRole('button', { name: 'Sauvegarder maintenant' }).click();
+  await page.getByText('Sauvegarde créée.').waitFor();
+  await page.getByRole('button', { name: 'Tester la dernière sauvegarde' }).click();
+  await page.getByText('Test de restauration terminé.').waitFor();
+  await page.screenshot({ path: shots + 'stockage-pc.png', fullPage: true });
+  const restore = page.getByRole('button', { name: 'Restaurer cette sauvegarde' });
+  assert.equal(await restore.isDisabled(), true, 'restauration verrouillée avant confirmation');
+  await page.getByLabel('Je veux revenir à cette sauvegarde').check();
+  await restore.click();
+  await page.getByText('Sauvegarde restaurée.').waitFor();
+  await context.close();
+  assert.deepEqual(problems, [], 'console stockage');
 }
 
 // Toutes les pages : rendu sans erreur, sans chiffre inventé, sur PC et mobile

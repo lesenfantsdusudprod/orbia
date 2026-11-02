@@ -1,7 +1,7 @@
 # orbia.
 
 Application privée de gestion comptable, en construction par étapes.
-**État actuel : étape A1** (socle, connexion, droits, configuration, journal).
+**État actuel : étape A2** (socle, droits, espace Drive, classeur versionné, sauvegardes).
 
 - `frontend/` : interface statique publiée sur GitHub Pages
 - `backend/` : Google Apps Script, seul à accéder aux données

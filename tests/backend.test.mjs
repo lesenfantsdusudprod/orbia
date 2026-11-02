@@ -196,3 +196,135 @@ test('aucun secret ni donnée réelle dans le code livré au dépôt', () => {
   assert.ok(!/gmail\.com|lesenfantsdusud|Enfants du Sud/i.test(bundle));
   assert.ok(!bundle.includes(CLIENT_ID));
 });
+
+const ready = () => { const b = createBackend(); const r = b.call(ADMIN, 'storage.init'); assert.equal(r.ok, true, JSON.stringify(r)); return b; };
+const book = (b) => b.drive.books.get(b.store.ORBIA_SPREADSHEET_ID);
+
+test('A2 : création de l\'arborescence et du classeur complet', () => {
+  const b = ready();
+  assert.equal(b.drive.folders.size, 17);
+  assert.equal(Object.keys(book(b).tabs).length, 18);
+  assert.ok(!('Feuille 1' in book(b).tabs));
+  assert.deepEqual(book(b).tabs.Users[0], ['email', 'role', 'active', 'addedAt', 'addedBy']);
+  const status = b.call(ADMIN, 'storage.status').data;
+  assert.equal(status.ready, true); assert.equal(status.isPrivate, true); assert.equal(status.automaticBackups, true); assert.equal(status.monthlyRestoreTest, true);
+});
+
+test('A2 : relancer ne recrée rien et ne touche pas aux données', () => {
+  const b = ready();
+  book(b).tabs.BankTransactions.push(['tx1', '', '2026-01-01', '', 'Paiement', 1000, 'EUR', '', 'non rapproché', 'imp1']);
+  const folders = b.drive.folders.size; const sheetId = b.store.ORBIA_SPREADSHEET_ID; const triggers = b.drive.triggers.length;
+  assert.equal(b.call(ADMIN, 'storage.init').ok, true);
+  assert.equal(b.drive.folders.size, folders);
+  assert.equal(b.store.ORBIA_SPREADSHEET_ID, sheetId);
+  assert.equal(b.drive.triggers.length, triggers);
+  assert.equal(book(b).tabs.BankTransactions.length, 2);
+});
+
+test('A2 : reprise après une panne, sans doublon', () => {
+  const b = createBackend();
+  b.drive.failNext = 'createFolder:Exports_FEC';
+  assert.equal(code(b.call(ADMIN, 'storage.init')), 'INTERNAL');
+  assert.equal(b.call(ADMIN, 'storage.status').data.ready, false);
+  assert.equal(b.call(ADMIN, 'storage.status').data.partial, true);
+  b.drive.failNext = 'insertSheet:Trips';
+  assert.equal(code(b.call(ADMIN, 'storage.init')), 'INTERNAL');
+  assert.equal(b.call(ADMIN, 'storage.init').ok, true);
+  assert.equal(b.drive.folders.size, 17);
+  assert.equal(b.drive.books.size, 1);
+  assert.equal(Object.keys(book(b).tabs).length, 18);
+});
+
+test('A2 : un onglet modifié à la main est signalé, jamais écrasé', () => {
+  const b = ready();
+  book(b).tabs.Projects[0][1] = 'nom modifié';
+  const r = b.call(ADMIN, 'storage.init');
+  assert.equal(code(r), 'SCHEMA_CONFLICT');
+  assert.equal(book(b).tabs.Projects[0][1], 'nom modifié');
+});
+
+test('A2 : une colonne ajoutée au schéma complète l\'onglet sans perte', () => {
+  const b = ready();
+  book(b).tabs.Projects[0].pop();
+  book(b).tabs.Projects.push(['p1', 'Spectacle']);
+  assert.equal(b.call(ADMIN, 'storage.init').ok, true);
+  assert.equal(book(b).tabs.Projects[0].at(-1), 'active');
+  assert.deepEqual(book(b).tabs.Projects[1], ['p1', 'Spectacle']);
+});
+
+test('A2 : stockage réservé à l\'administrateur', () => {
+  const b = ready();
+  b.call(ADMIN, 'users.save', { email: 'collab@example.test', role: 'collaborateur', active: true });
+  for (const action of ['storage.status', 'storage.init', 'storage.backup', 'storage.restoreTest', 'storage.restore']) {
+    assert.equal(code(b.call('collab@example.test', action, { confirm: 'RESTAURER' })), 'FORBIDDEN', action);
+    assert.equal(code(b.post({ action })), 'UNAUTHENTICATED', action);
+  }
+});
+
+test('A2 : les identifiants Drive restent côté serveur', () => {
+  const b = ready();
+  assert.ok(!JSON.stringify(b.call(ADMIN, 'session.get')).includes(b.store.ORBIA_SPREADSHEET_ID));
+});
+
+test('A2 : un dossier devenu public est signalé', () => {
+  const b = ready();
+  b.drive.folders.get(b.store.ORBIA_ROOT_FOLDER_ID).access = 'ANYONE';
+  assert.equal(b.call(ADMIN, 'storage.status').data.isPrivate, false);
+});
+
+test('A2 : copie lisible des utilisateurs et réglages, audit durable', () => {
+  const b = ready();
+  b.call(ADMIN, 'users.save', { email: 'collab@example.test', role: 'lecture', active: true });
+  b.call(ADMIN, 'company.update', company);
+  assert.equal(book(b).tabs.Users.length, 3);
+  assert.ok(book(b).tabs.Settings.some((r) => r[0] === 'legalName' && r[1] === 'Société Test'));
+  assert.ok(book(b).tabs.Settings.some((r) => r[0] === 'schemaVersion' && r[1] === 1));
+  assert.ok(book(b).tabs.AuditLog.some((r) => r.includes('COMPANY_UPDATED')));
+});
+
+test('A2 : la copie des utilisateurs reste alignée sur les colonnes', () => {
+  const b = ready();
+  b.call(ADMIN, 'users.save', { email: 'a@example.test', role: 'lecture', active: true });
+  assert.equal(book(b).tabs.Users.length, 3);
+  assert.deepEqual(book(b).tabs.Users[2].slice(0, 3), ['a@example.test', 'lecture', true]);
+});
+
+test('A2 : sauvegarde, test puis restauration sans rien détruire', () => {
+  const b = ready();
+  b.call(ADMIN, 'company.update', company);
+  assert.equal(code(b.call(ADMIN, 'storage.restoreTest')), 'VALIDATION');
+  const saved = b.call(ADMIN, 'storage.backup').data;
+  assert.equal(saved.backups.length, 1);
+  const exportFile = [...b.drive.files.values()].find((f) => f.name.endsWith('.json'));
+  assert.equal(JSON.parse(exportFile.content).company.legalName, 'Société Test');
+  assert.equal(b.call(ADMIN, 'storage.restoreTest').data.restoreTest.ok, true);
+
+  const before = b.store.ORBIA_SPREADSHEET_ID;
+  book(b).tabs.BankTransactions.push(['erreur']);
+  const backupId = saved.backups[0].id;
+  assert.equal(code(b.call(ADMIN, 'storage.restore', { backupId })), 'VALIDATION');
+  assert.equal(b.call(ADMIN, 'storage.restore', { backupId, confirm: 'RESTAURER' }).ok, true);
+  assert.notEqual(b.store.ORBIA_SPREADSHEET_ID, before);
+  assert.equal(book(b).tabs.BankTransactions.length, 1);
+  assert.equal(b.drive.books.get(before).tabs.BankTransactions.length, 2);
+});
+
+test('A2 : on ne restaure pas un fichier quelconque ni une sauvegarde abîmée', () => {
+  const b = ready();
+  const backupId = b.call(ADMIN, 'storage.backup').data.backups[0].id;
+  assert.equal(code(b.call(ADMIN, 'storage.restore', { backupId: b.store.ORBIA_SPREADSHEET_ID, confirm: 'RESTAURER' })), 'VALIDATION');
+  const current = b.store.ORBIA_SPREADSHEET_ID;
+  delete b.drive.books.get(backupId).tabs.Trips;
+  assert.equal(b.call(ADMIN, 'storage.restoreTest').data.restoreTest.ok, false);
+  assert.equal(code(b.call(ADMIN, 'storage.restore', { backupId, confirm: 'RESTAURER' })), 'VALIDATION');
+  assert.equal(b.store.ORBIA_SPREADSHEET_ID, current);
+});
+
+test('A2 : la sauvegarde planifiée trace aussi ses échecs', () => {
+  const b = ready();
+  b.sandbox.orbiaDailyBackup();
+  assert.equal(b.call(ADMIN, 'storage.status').data.backups.length, 1);
+  delete b.store.ORBIA_FOLDER_IDS;
+  b.sandbox.orbiaDailyBackup();
+  assert.ok(book(b).tabs.AuditLog.some((r) => r.includes('BACKUP_FAILED')));
+});

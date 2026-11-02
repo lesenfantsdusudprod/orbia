@@ -6,6 +6,10 @@ function orbiaCheckSetup() {
   const props = PropertiesService.getScriptProperties();
   const missing = [PROP.GOOGLE_CLIENT_ID, PROP.BOOTSTRAP_ADMIN].filter((key) => !props.getProperty(key));
   UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo?id_token=test', { muteHttpExceptions: true });
+  // Ces appels font apparaître les autorisations Drive, Sheets et tâches planifiées.
+  DriveApp.getRootFolder();
+  ScriptApp.getProjectTriggers();
+  SpreadsheetApp.getActiveSpreadsheet();
   if (missing.length) {
     console.log('Propriétés manquantes : ' + missing.join(', '));
   } else {

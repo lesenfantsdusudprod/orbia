@@ -23,6 +23,7 @@ const LogRepository = {
       correlationId: sanitizeLogText_(entry.correlationId).slice(0, 40)
     };
     console.log(JSON.stringify(clean));
+    if (clean.level !== 'info') appendAuditRow_(clean);
     try {
       withLock_(() => {
         const props = PropertiesService.getScriptProperties();
