@@ -81,6 +81,7 @@ const backend = createBackend();
   const { page, problems, context } = await session(backend, 'admin@example.test', DESK);
   await page.getByRole('heading', { name: /Société Démo/ }).waitFor();
   assert.equal(await page.locator('main img').count(), 0, 'le HTML saisi reste du texte');
+  await page.waitForTimeout(900);
   await page.screenshot({ path: shots + 'accueil-pc.png' });
   await page.getByRole('link', { name: 'Réglages' }).first().click();
   await page.getByRole('link', { name: 'Utilisateurs' }).click();
