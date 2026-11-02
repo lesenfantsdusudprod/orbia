@@ -62,6 +62,7 @@ export function createBackend({ props = {} } = {}) {
   };
   const makeFolder = (name, parent) => {
     const folder = { id: newId('folder'), name, parent, access: 'PRIVATE',
+      setTrashed(v) { this.trashed = v; },
       getId() { return this.id; }, getUrl() { return 'https://drive.test/' + this.id; }, getSharingAccess() { return this.access; },
       createFolder(n) { maybeFail('createFolder:' + n); return makeFolder(n, this.id); },
       getFoldersByName(n) { return iterator([...drive.folders.values()].filter((f) => f.parent === this.id && f.name === n)); },
