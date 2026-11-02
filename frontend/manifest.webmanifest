@@ -1,0 +1,3 @@
+{ "name": "orbia.", "short_name": "orbia.", "lang": "fr", "start_url": ".", "scope": ".", "display": "standalone",
+  "background_color": "#FBF8F1", "theme_color": "#FBF8F1",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }] }

@@ -1,0 +1,11 @@
+{
+  "name": "orbia",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "bundle": "node scripts/bundle-backend.mjs",
+    "test": "node scripts/bundle-backend.mjs && node --test tests/backend.test.mjs",
+    "test:e2e": "node tests/e2e/run.mjs"
+  }
+}

@@ -1,0 +1,40 @@
+name: Publier l'interface
+on:
+  push:
+    branches: [main]
+    paths: ['frontend/**', '.github/workflows/pages.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Injecter la configuration publique
+        env:
+          ORBIA_API_URL: ${{ vars.ORBIA_API_URL }}
+          ORBIA_GOOGLE_CLIENT_ID: ${{ vars.ORBIA_GOOGLE_CLIENT_ID }}
+        run: |
+          node -e "
+            const { ORBIA_API_URL: apiUrl, ORBIA_GOOGLE_CLIENT_ID: googleClientId } = process.env;
+            if (!apiUrl || !googleClientId) throw new Error('Variables ORBIA_API_URL et ORBIA_GOOGLE_CLIENT_ID requises');
+            require('fs').writeFileSync('frontend/config.js', 'window.ORBIA_CONFIG = Object.freeze(' + JSON.stringify({ apiUrl, googleClientId }) + ');\n');
+          "
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend
+      - id: deployment
+        uses: actions/deploy-pages@v4
