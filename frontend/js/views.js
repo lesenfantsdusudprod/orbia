@@ -11,31 +11,6 @@ const head = (title, text) => h('header', { class: 'page-head' }, h('h1', {}, ti
 const options = (pairs, current) => pairs.map(([value, label]) => h('option', { value, selected: value === current }, label));
 const dateTime = (iso) => new Intl.DateTimeFormat('fr-FR', { dateStyle: 'short', timeStyle: 'medium', timeZone: 'Europe/Paris' }).format(new Date(iso));
 
-/* Accueil : aucune donnée n'est simulée. Sans import, la trésorerie reste « inconnue ». */
-export function homeView(session) {
-  const needsSetup = !session.company.legalName;
-  return [
-    h('header', { class: 'page-head' }, h('h1', {}, session.company.legalName || 'Bienvenue sur Orbia')),
-    needsSetup && h('div', { class: 'notice' },
-      h('p', {}, 'Renseignez la société avant de commencer.'),
-      can(session, 'company:write')
-        ? h('a', { class: 'btn btn-accent', href: '#/reglages' }, 'Configurer la société')
-        : h('p', { class: 'muted' }, 'Un administrateur doit le faire.')),
-    h('div', { class: 'home-grid' },
-      h('section', { class: 'treasury', 'aria-label': 'Trésorerie' },
-        h('h2', {}, 'Trésorerie'),
-        h('p', { class: 'treasury-value' }, 'Pas encore de relevé'),
-        h('p', {}, 'Le solde apparaîtra ici avec la date du dernier import Qonto.')),
-      h('div', { class: 'side' },
-        h('section', { class: 'card', 'aria-label': 'Ajouter un justificatif' },
-          h('h2', {}, 'Ajouter un justificatif'),
-          h('div', { class: 'actions' },
-            h('button', { class: 'btn btn-accent', disabled: true }, 'Photographier'),
-            h('button', { class: 'btn btn-ghost', disabled: true }, 'Télécharger')),
-          h('p', { class: 'muted' }, 'Disponible à l’étape Documents.')))),
-  ];
-}
-
 export function upcomingView(title, text) {
   return [head(title, text), h('section', { class: 'card' }, h('p', { class: 'muted' }, 'Ce module n’est pas encore construit.'))];
 }

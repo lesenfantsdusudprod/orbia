@@ -55,11 +55,10 @@ const backend = createBackend();
 // Administrateur sur téléphone : accueil vide, sans chiffre inventé
 {
   const { page, problems, context } = await session(backend, 'admin@example.test', PHONE);
-  await page.getByRole('heading', { name: 'Bienvenue sur Orbia' }).waitFor();
-  assert.ok(await page.getByText('Pas encore de relevé').isVisible());
+  await page.getByRole('heading', { name: 'Bonjour !' }).waitFor();
+  assert.ok(await page.getByText('Aucun relevé importé').isVisible());
   assert.ok(!/\d\s?€/.test(await page.locator('main').innerText()), 'aucun montant inventé');
   await noOverflow(page, 'accueil mobile');
-  await page.screenshot({ path: shots + 'accueil-mobile.png' });
 
   await page.getByRole('link', { name: 'Configurer la société' }).click();
   await page.getByLabel('Raison sociale').fill('Société Démo <img src=x onerror=alert(1)>');
@@ -79,10 +78,9 @@ const backend = createBackend();
 // Administrateur sur PC : utilisateurs, journal, XSS neutralisé
 {
   const { page, problems, context } = await session(backend, 'admin@example.test', DESK);
-  await page.getByRole('heading', { name: /Société Démo/ }).waitFor();
-  assert.equal(await page.locator('main img').count(), 0, 'le HTML saisi reste du texte');
-  await page.waitForTimeout(900);
-  await page.screenshot({ path: shots + 'accueil-pc.png' });
+  await page.getByRole('heading', { name: 'Bonjour !' }).waitFor();
+  await page.locator('.account-name', { hasText: 'Société Démo' }).waitFor();
+  assert.equal(await page.locator('#app img').count(), 0, 'le HTML saisi reste du texte');
   await page.getByRole('link', { name: 'Réglages' }).first().click();
   await page.getByRole('link', { name: 'Utilisateurs' }).click();
   await page.getByLabel('E-mail').fill('collab@example.test');
@@ -100,7 +98,7 @@ const backend = createBackend();
 // Collaborateur : pas d'onglets admin, formulaire en lecture, URL directe sans effet
 {
   const { page, problems, context } = await session(backend, 'collab@example.test', PHONE);
-  await page.getByRole('heading', { name: /Société Démo/ }).waitFor();
+  await page.getByRole('heading', { name: 'Bonjour !' }).waitFor();
   await page.goto(origin + '#/reglages/utilisateurs');
   await page.getByRole('heading', { name: 'Page introuvable' }).waitFor();
   await page.goto(origin + '#/reglages');
@@ -125,6 +123,26 @@ const backend = createBackend();
   await s.page.getByRole('button', { name: 'Enregistrer la société' }).click();
   await s.page.getByRole('heading', { name: 'Accès refusé' }).waitFor();
   await s.context.close();
+}
+
+// Toutes les pages : rendu sans erreur, sans chiffre inventé, sur PC et mobile
+{
+  const pages = [['banque', 'Banque & rapprochement'], ['factures', 'Factures & documents'], ['projets', 'Événements'], ['tva', 'TVA mensuelle'], ['deplacements', 'Déplacements & notes de frais'], ['comptabilite', 'Comptabilité']];
+  for (const [viewport, tag] of [[DESK, 'pc'], [PHONE, 'mobile']]) {
+    const { page, problems, context } = await session(backend, 'admin@example.test', viewport);
+    await page.getByRole('heading', { name: 'Bonjour !' }).waitFor();
+    await page.waitForTimeout(150);
+    await page.screenshot({ path: shots + `accueil-${tag}.png` });
+    for (const [path, title] of pages) {
+      await page.goto(origin + '#/' + path);
+      await page.getByRole('heading', { name: title, level: 1 }).waitFor();
+      assert.ok(!/\d\s?€/.test(await page.locator('main').innerText()), `${path}: aucun montant inventé`);
+      await noOverflow(page, `${path} ${tag}`);
+      await page.screenshot({ path: shots + `${path}-${tag}.png`, fullPage: true });
+    }
+    await context.close();
+    assert.deepEqual(problems, [], `console ${tag}`);
+  }
 }
 
 // Compte non autorisé

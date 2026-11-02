@@ -1,7 +1,8 @@
 import { h, icon } from './dom.js';
 import { api, setTokenProvider, setAccessLostHandler } from './api.js';
 import { initAuth, renderSignIn, currentToken, clearToken, signOut } from './auth.js';
-import { homeView, upcomingView, moreView, companyView, usersView, logsView } from './views.js';
+import { upcomingView, moreView, companyView, usersView, logsView } from './views.js';
+import { homeView, PAGES } from './pages.js';
 
 const root = document.getElementById('app');
 let session = null;
@@ -9,13 +10,12 @@ let gis = null;
 
 const SECTIONS = [
   { path: '/', label: 'Accueil', icon: 'home', tab: true },
-  { path: '/documents', label: 'Documents', icon: 'docs', tab: true, text: 'Factures, reçus et justificatifs.' },
-  { path: '/banque', label: 'Banque', icon: 'bank', tab: true, text: 'Relevés Qonto et rapprochements.' },
-  { path: '/frais', label: 'Frais', icon: 'trip', tab: true, text: 'Notes de frais et déplacements.' },
-  { path: '/projets', label: 'Projets', icon: 'projects', text: 'Rentabilité par projet.', optional: true },
-  { path: '/comptabilite', label: 'Comptabilité', icon: 'ledger', text: 'Journaux, grand livre et balance.' },
-  { path: '/tva', label: 'TVA', icon: 'vat', text: 'Préparation de la déclaration CA3.' },
-  { path: '/cloture', label: 'Clôture', icon: 'close', text: 'Exercice et états préparatoires.' },
+  { path: '/banque', label: 'Banque', icon: 'bank', tab: true },
+  { path: '/factures', label: 'Factures', icon: 'docs', tab: true },
+  { path: '/projets', label: 'Événements', icon: 'calendar', optional: true },
+  { path: '/tva', label: 'TVA', icon: 'vat' },
+  { path: '/deplacements', label: 'Déplacements', icon: 'car', tab: true },
+  { path: '/comptabilite', label: 'Comptabilité', icon: 'ledger' },
   { path: '/reglages', label: 'Réglages', icon: 'settings' }
 ];
 
@@ -48,16 +48,24 @@ function shell() {
   const tabHit = sections.some((s) => s.tab && isActive(s));
   const main = h('main', { class: 'main', id: 'main', tabindex: '-1' });
 
+  const who = session.company.legalName || session.user.name || session.user.email;
+  const initials = (session.user.name || session.user.email).split(/[\s.@]+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+  const account = (extraClass) => h('details', { class: `account ${extraClass}` },
+    h('summary', { 'aria-label': 'Compte' }, h('span', { class: 'avatar', 'aria-hidden': 'true' }, initials), h('span', { class: 'account-name' }, who)),
+    h('div', { class: 'account-menu' },
+      h('p', { class: 'muted' }, session.user.email),
+      h('button', { class: 'btn btn-ghost', onclick: logout }, 'Se déconnecter')));
+
   root.replaceChildren(h('div', { class: 'shell' },
     h('aside', { class: 'rail' },
       h('a', { class: 'brand', href: '#/' }, 'orbia'),
       h('nav', { 'aria-label': 'Navigation principale' }, sections.map((s) =>
-        h('a', { class: 'rail-link', href: `#${s.path}`, 'aria-current': current(s) }, icon(s.icon), s.label))),
-      h('div', { class: 'rail-user' },
-        h('span', {}, session.user.email),
-        h('button', { class: 'btn btn-ghost', onclick: logout }, 'Se déconnecter'))),
-    h('header', { class: 'topbar' }, h('a', { class: 'brand', href: '#/' }, 'orbia')),
-    main,
+        h('a', { class: 'rail-link', href: `#${s.path}`, 'aria-current': current(s) }, icon(s.icon), s.label)))),
+    h('div', { class: 'content' },
+      h('header', { class: 'topbar' },
+        h('a', { class: 'brand brand-mobile', href: '#/' }, 'orbia'),
+        h('div', { class: 'topbar-end' }, account('')) ),
+      main),
     h('nav', { class: 'tabbar', 'aria-label': 'Navigation principale' },
       sections.filter((s) => s.tab).map((s) => h('a', { href: `#${s.path}`, 'aria-current': current(s) }, icon(s.icon), s.label)),
       h('a', { href: '#/plus', 'aria-current': tabHit ? null : 'page' }, icon('more'), 'Plus'))));
@@ -75,8 +83,7 @@ async function resolveView(path) {
   }
   if (path === '/reglages/utilisateurs' && session.permissions.includes('users:manage')) return usersView(session);
   if (path === '/reglages/journal' && session.permissions.includes('logs:read')) return logsView(session);
-  const section = SECTIONS.find((s) => s.path === path && s.text);
-  if (section) return upcomingView(section.label, section.text);
+  if (PAGES[path] && (path !== '/projets' || session.company.projectsEnabled)) return PAGES[path](session);
   return upcomingView('Page introuvable', 'Cette adresse ne correspond à aucune page.');
 }
 
