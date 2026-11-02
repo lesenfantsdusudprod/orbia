@@ -188,7 +188,7 @@ export async function storageView(session) {
   }
 
   function restoreBlock(status) {
-    const select = h('select', { name: 'backup', 'aria-label': 'Sauvegarde à restaurer' }, status.backups.map((b) => h('option', { value: b.id }, b.name.replace('Orbia_sauvegarde_', '').replace('T', ' à '))));
+    const select = h('select', { name: 'backup', 'aria-label': 'Sauvegarde à restaurer' }, status.backups.map((b) => h('option', { value: b.id }, dateTime(b.name.replace('Orbia_sauvegarde_', '').replace(/T(\d\d)-(\d\d)-(\d\d)/, 'T$1:$2:$3Z')))));
     const confirm = h('input', { type: 'checkbox' });
     const button = h('button', { class: 'btn btn-ghost', disabled: true, onclick: () => run(button, 'storage.restore', { backupId: select.value, confirm: 'RESTAURER' }, 'Sauvegarde restaurée. L’ancien classeur reste dans Drive.', 'Restauration en cours') }, 'Restaurer cette sauvegarde');
     confirm.addEventListener('change', () => { button.disabled = !confirm.checked; });
