@@ -54,6 +54,7 @@ export function createBackend({ props = {} } = {}) {
   const iterator = (list) => { let i = 0; return { hasNext: () => i < list.length, next: () => list[i++] }; };
   const makeFile = (name, parent, mime, bookId) => {
     const file = { id: bookId || newId('file'), name, parent, mime, access: 'PRIVATE',
+      setTrashed(v) { this.trashed = v; },
       getId() { return this.id; }, getName() { return this.name; }, getUrl() { return 'https://drive.test/' + this.id; }, getSharingAccess() { return this.access; },
       moveTo(folder) { this.parent = folder.id; },
       makeCopy(n, folder) { const nb = newId('book'); drive.books.set(nb, makeBook(nb, structuredClone(drive.books.get(this.id).tabs))); const c = makeFile(n, folder.id, 'sheet', nb); return c; } };

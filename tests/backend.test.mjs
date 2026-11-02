@@ -329,9 +329,11 @@ test('A2 : la sauvegarde planifiée trace aussi ses échecs', () => {
   assert.ok(book(b).tabs.AuditLog.some((r) => r.includes('BACKUP_FAILED')));
 });
 
-test('A2 : le contrôle d\'installation essaie vraiment d\'écrire dans Drive, puis nettoie', () => {
+test('A2 : le contrôle d\'installation essaie vraiment d\'écrire dans Drive et Sheets, puis nettoie', () => {
   const b = createBackend();
   b.sandbox.orbiaCheckSetup();
   const [folder] = b.drive.folders.values();
   assert.equal(folder.trashed, true);
+  const [file] = b.drive.files.values();
+  assert.equal(file.trashed, true);
 });

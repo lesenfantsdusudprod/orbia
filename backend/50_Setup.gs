@@ -9,7 +9,7 @@ function orbiaCheckSetup() {
   // Vrai essai d'écriture : une simple lecture de Drive ne prouve pas le droit de créer.
   DriveApp.createFolder('Orbia - test d\u2019autorisation').setTrashed(true);
   ScriptApp.getProjectTriggers();
-  SpreadsheetApp.getActiveSpreadsheet();
+  DriveApp.getFileById(SpreadsheetApp.create('Orbia - test d\u2019autorisation').getId()).setTrashed(true);
   if (missing.length) {
     console.log('Propriétés manquantes : ' + missing.join(', '));
   } else {
