@@ -2,13 +2,13 @@
  * Schéma du classeur. Pour une évolution : ajouter des colonnes À LA FIN, puis
  * incrémenter SCHEMA_VERSION. Une colonne existante n'est jamais renommée.
  */
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 const SCHEMA = Object.freeze({
   Settings: ['key', 'value', 'updatedAt'],
   Users: ['email', 'role', 'active', 'addedAt', 'addedBy'],
   BankImports: ['id', 'fileName', 'hash', 'importedAt', 'status', 'rowCount', 'importedBy'],
-  BankTransactions: ['id', 'sourceId', 'operationDate', 'valueDate', 'rawLabel', 'amountCents', 'currency', 'account', 'status', 'importId'],
+  BankTransactions: ['id', 'sourceId', 'operationDate', 'valueDate', 'rawLabel', 'amountCents', 'currency', 'account', 'status', 'importId', 'balanceCents'],
   Documents: ['id', 'driveFileId', 'sha256', 'type', 'supplier', 'date', 'invoiceNumber', 'netCents', 'vatCents', 'grossCents', 'ocrStatus', 'validationStatus'],
   DocumentVATLines: ['documentId', 'netCents', 'rate', 'vatCents', 'treatment', 'chargeability', 'deductibility', 'justification'],
   Matches: ['id', 'transactionId', 'documentId', 'amountCents', 'method', 'score', 'validatedBy'],

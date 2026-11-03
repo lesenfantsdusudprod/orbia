@@ -216,3 +216,12 @@ td.num, th.num { text-align: right; }
   .only-desktop { display: none !important; }
   .main { gap: 18px; }
 }
+
+/* Banque */
+.op { display: flex; justify-content: space-between; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
+.op:first-child { border-top: 0; }
+.op .row-main { flex: 1 1 auto; }
+.op-end { display: grid; justify-items: end; gap: 4px; flex: none; }
+.amount-in { color: var(--sage); font-weight: 650; white-space: nowrap; }
+.amount-out { color: var(--terracotta); font-weight: 650; white-space: nowrap; }
+.errors { margin: 0; padding-left: 18px; color: var(--terracotta); font-size: 0.875rem; overflow-wrap: anywhere; }

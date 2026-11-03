@@ -87,6 +87,35 @@ const ACTIONS = Object.freeze({
     }
   },
 
+  'bank.summary': {
+    permission: 'bank:read',
+    run: () => BankService.summary()
+  },
+
+  'bank.list': {
+    permission: 'bank:read',
+    run: (payload) => BankService.list(asPlainObject_(payload))
+  },
+
+  'bank.preview': {
+    permission: 'bank:import',
+    run: (payload) => BankService.preview(asPlainObject_(payload))
+  },
+
+  'bank.import': {
+    permission: 'bank:import',
+    run: (payload, ctx) => {
+      const report = withLock_(() => BankService.import_(asPlainObject_(payload), ctx.user.email), LIMITS.STORAGE_LOCK_WAIT_MS);
+      LogRepository.append({ level: 'audit', code: 'BANK_IMPORT', action: ctx.action, actor: ctx.user.email, message: report.fileName + ' : ' + report.added + ' opération(s) ajoutée(s), ' + report.skipped + ' déjà présente(s).', correlationId: ctx.correlationId });
+      return report;
+    }
+  },
+
+  'bank.scanFolder': {
+    permission: 'bank:import',
+    run: () => BankService.scanFolder_()
+  },
+
   'logs.list': {
     permission: 'logs:read',
     run: () => ({ entries: LogRepository.list() })

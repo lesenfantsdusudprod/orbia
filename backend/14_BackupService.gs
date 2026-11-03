@@ -48,7 +48,8 @@ const BackupService = {
       const sheet = copy.getSheetByName(name);
       if (!sheet || sheet.getLastColumn() < 1) return true;
       const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
-      return headers.slice(0, SCHEMA[name].length).join() !== SCHEMA[name].join();
+      // Une sauvegarde plus ancienne peut avoir moins de colonnes : elles seront ajoutées ensuite.
+      return headers.length === 0 || SCHEMA[name].slice(0, headers.length).join() !== headers.join();
     });
     return { readable: missing.length === 0, missing };
   },

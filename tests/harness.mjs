@@ -30,7 +30,8 @@ export function createBackend({ props = {} } = {}) {
       getUuid: randomUUID,
       DigestAlgorithm: { SHA_256: 'sha256' }, Charset: { UTF_8: 'utf8' },
       computeDigest: (_, v) => [...createHash('sha256').update(v).digest()],
-      base64EncodeWebSafe: (b) => Buffer.from(b).toString('base64url')
+      base64EncodeWebSafe: (b) => Buffer.from(b).toString('base64url'),
+      formatDate: (d) => d.toISOString().slice(0, 7)
     },
     UrlFetchApp: {
       fetch(url) {
@@ -55,6 +56,7 @@ export function createBackend({ props = {} } = {}) {
   const makeFile = (name, parent, mime, bookId) => {
     const file = { id: bookId || newId('file'), name, parent, mime, access: 'PRIVATE',
       setTrashed(v) { this.trashed = v; },
+      getBlob() { return { getDataAsString: () => this.content }; },
       getId() { return this.id; }, getName() { return this.name; }, getUrl() { return 'https://drive.test/' + this.id; }, getSharingAccess() { return this.access; },
       moveTo(folder) { this.parent = folder.id; },
       makeCopy(n, folder) { const nb = newId('book'); drive.books.set(nb, makeBook(nb, structuredClone(drive.books.get(this.id).tabs))); const c = makeFile(n, folder.id, 'sheet', nb); return c; } };
@@ -68,6 +70,7 @@ export function createBackend({ props = {} } = {}) {
       createFolder(n) { maybeFail('createFolder:' + n); return makeFolder(n, this.id); },
       getFoldersByName(n) { return iterator([...drive.folders.values()].filter((f) => f.parent === this.id && f.name === n)); },
       createFile(n, content, mime) { const f = makeFile(n, this.id, mime); f.content = content; return f; },
+      getFiles() { return iterator([...drive.files.values()].filter((f) => f.parent === this.id)); },
       getFilesByType(type) { return iterator([...drive.files.values()].filter((f) => f.parent === this.id && f.mime === type)); } };
     drive.folders.set(folder.id, folder);
     return folder;
@@ -82,7 +85,16 @@ export function createBackend({ props = {} } = {}) {
     appendRow(row) { this.grid.push(row); },
     getRange(r, c, nr, nc) { const g = () => this.grid; return {
       getValues: () => Array.from({ length: nr }, (_, i) => Array.from({ length: nc }, (_, j) => g()[r - 1 + i]?.[c - 1 + j] ?? '')),
-      setValues: (vals) => vals.forEach((row, i) => row.forEach((v, j) => { (g()[r - 1 + i] ??= [])[c - 1 + j] = v; })),
+      setValues: (vals) => vals.forEach((row, i) => row.forEach((v, j) => {
+        // Comme Sheets : l'apostrophe force le texte, sinon formule ou date sont interprétées.
+        let cell = v;
+        if (typeof v === 'string') {
+          if (v.startsWith("'")) cell = v.slice(1);
+          else if (v.startsWith('=')) cell = { formula: v };
+          else if (/^\d{4}-\d{2}-\d{2}$/.test(v)) cell = new Date(v);
+        }
+        (g()[r - 1 + i] ??= [])[c - 1 + j] = cell;
+      })),
       clearContent: () => { g().length = r - 1; } }; }
   });
   const makeBook = (id, tabs) => ({ id, tabs,
@@ -103,7 +115,7 @@ export function createBackend({ props = {} } = {}) {
     openById: (id) => drive.books.get(id),
     getActiveSpreadsheet: () => null
   };
-  const builder = (handler) => { const chain = { timeBased: () => chain, everyDays: () => chain, onMonthDay: () => chain, atHour: () => chain, create() { drive.triggers.push(handler); } }; return chain; };
+  const builder = (handler) => { const chain = { timeBased: () => chain, everyDays: () => chain, everyHours: () => chain, onMonthDay: () => chain, atHour: () => chain, create() { drive.triggers.push(handler); } }; return chain; };
   sandbox.ScriptApp = {
     getProjectTriggers: () => drive.triggers.map((h) => ({ getHandlerFunction: () => h })),
     newTrigger: builder

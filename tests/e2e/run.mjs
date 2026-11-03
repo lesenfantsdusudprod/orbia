@@ -148,6 +148,33 @@ const backend = createBackend();
   assert.deepEqual(problems, [], 'console stockage');
 }
 
+// Banque : import réel depuis l'interface, puis tableau de bord
+{
+  const b = createBackend();
+  b.call('admin@example.test', 'storage.init');
+  const { page, problems, context } = await session(b, 'admin@example.test', PHONE);
+  await page.getByRole('heading', { name: 'Bonjour !' }).waitFor();
+  await page.goto(origin + '#/banque');
+  const csv = 'Date;Libellé;Montant;Solde\n01/10/2026;SNCF;-98,00;1 000,00\n02/10/2026;Client <b>x</b>;1 200,50;2 200,50\n';
+  await page.locator('input[type=file]').setInputFiles({ name: 'octobre.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) });
+  await page.getByRole('heading', { name: 'Confirmez les colonnes' }).waitFor();
+  await noOverflow(page, 'colonnes mobile');
+  await page.getByRole('button', { name: 'Vérifier le fichier' }).click();
+  await page.getByRole('heading', { name: 'Vérifiez avant d’importer' }).waitFor();
+  await page.screenshot({ path: shots + 'import-mobile.png', fullPage: true });
+  await page.getByRole('button', { name: 'Importer 2 opération(s)' }).click();
+  await page.getByText('Selon le relevé du').waitFor();
+  await page.getByText('Client <b>x</b>').first().waitFor();
+  await noOverflow(page, 'banque remplie');
+  await page.screenshot({ path: shots + 'banque-remplie-mobile.png', fullPage: true });
+  await page.goto(origin + '#/');
+  await page.getByText('Selon le relevé du').first().waitFor();
+  assert.ok((await page.locator('.hero').innerText()).replace(/\s/g, ' ').includes('2 200,50'));
+  await page.screenshot({ path: shots + 'accueil-rempli-mobile.png' });
+  await context.close();
+  assert.deepEqual(problems, [], 'console banque');
+}
+
 // Toutes les pages : rendu sans erreur, sans chiffre inventé, sur PC et mobile
 {
   const pages = [['banque', 'Banque & rapprochement'], ['factures', 'Factures & documents'], ['projets', 'Événements'], ['tva', /TVA/], ['deplacements', 'Déplacements & notes de frais'], ['comptabilite', 'Comptabilité']];

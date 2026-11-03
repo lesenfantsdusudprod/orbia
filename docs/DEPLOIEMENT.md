@@ -85,3 +85,19 @@ Sans compte payant, GitHub Pages exige un dépôt public.
 | Se connecter en collaborateur | Pas d'onglet Stockage |
 
 Une restauration fait basculer Orbia sur une copie de la sauvegarde. L'ancien classeur reste dans Drive.
+
+## Mise à jour vers A3
+
+1. Remplacez `Code.gs` par `dist/Orbia_backend.gs`, puis enregistrez.
+2. **Déployer > Gérer les déploiements**, crayon, **Nouvelle version**, **Déployer**.
+3. Dans Orbia, **Réglages > Stockage**, cliquez sur **Vérifier la structure** pour activer la lecture horaire du dossier Drive.
+
+| Test A3 | Résultat attendu |
+|---|---|
+| **Banque > Importer depuis Qonto**, avec un vrai CSV | Colonnes proposées, à confirmer |
+| **Vérifier le fichier** | Nombre de lignes, période, erreurs éventuelles |
+| Importer, puis réimporter le même fichier | Aucun doublon |
+| Importer un fichier avec une ligne abîmée | Refus, aucune opération ajoutée |
+| Déposer un CSV de même format dans `Imports_CSV` | Importé dans l'heure, puis déplacé dans `Archives_imports` |
+
+Le solde affiché est celui du dernier relevé, jamais un solde en temps réel. Les encaissements et décaissements sont des flux bancaires, pas du chiffre d'affaires.

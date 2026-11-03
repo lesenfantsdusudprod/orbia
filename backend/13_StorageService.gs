@@ -31,10 +31,18 @@ function ensureTab_(spreadsheet, name, columns) {
   }
 }
 
+/**
+ * Force le texte dans Sheets : sans apostrophe, « =... » deviendrait une formule
+ * et « 2026-01-31 » une date. Toute donnée venue de l'extérieur passe par ici.
+ */
+function safeCell_(value) {
+  return typeof value === 'string' && value !== '' ? "'" + value : value;
+}
+
 function replaceRows_(sheet, rows, width) {
   const last = sheet.getLastRow();
   if (last > 1) sheet.getRange(2, 1, last - 1, width).clearContent();
-  if (rows.length) sheet.getRange(2, 1, rows.length, width).setValues(rows);
+  if (rows.length) sheet.getRange(2, 1, rows.length, width).setValues(rows.map((row) => row.map(safeCell_)));
 }
 
 const StorageService = {
@@ -84,6 +92,9 @@ const StorageService = {
     if (handlers.indexOf('orbiaMonthlyRestoreTest') < 0) {
       ScriptApp.newTrigger('orbiaMonthlyRestoreTest').timeBased().onMonthDay(1).atHour(4).create();
     }
+    if (handlers.indexOf('orbiaScanBankFolder') < 0) {
+      ScriptApp.newTrigger('orbiaScanBankFolder').timeBased().everyHours(1).create();
+    }
   },
 
   /** Copie lisible des réglages. La source reste côté serveur : voir docs/DEPLOIEMENT.md. */
@@ -114,6 +125,7 @@ const StorageService = {
       isPrivate: root.getSharingAccess() === DriveApp.Access.PRIVATE && file.getSharingAccess() === DriveApp.Access.PRIVATE,
       automaticBackups: handlers.indexOf('orbiaDailyBackup') >= 0,
       monthlyRestoreTest: handlers.indexOf('orbiaMonthlyRestoreTest') >= 0,
+      bankFolderScan: handlers.indexOf('orbiaScanBankFolder') >= 0,
       lastBackup: JSON.parse(props.getProperty(PROP.LAST_BACKUP) || 'null'),
       lastRestoreTest: JSON.parse(props.getProperty(PROP.LAST_RESTORE_TEST) || 'null'),
       backups: BackupService.list()
@@ -135,7 +147,8 @@ function appendAuditRow_(entry) {
     const id = storageProps_().getProperty(PROP.SPREADSHEET_ID);
     if (!id) return;
     const sheet = SpreadsheetApp.openById(id).getSheetByName('AuditLog');
-    if (sheet) sheet.appendRow(SCHEMA.AuditLog.map((c) => entry[c] === undefined ? '' : entry[c]));
+    // appendRow reste atomique ; un espace neutralise toute formule éventuelle.
+    if (sheet) sheet.appendRow(SCHEMA.AuditLog.map((c) => String(entry[c] === undefined ? '' : entry[c]).replace(/^[=+\-@]/, ' $&')));
   } catch (err) {
     console.error('Journal d’audit indisponible');
   }

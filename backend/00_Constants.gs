@@ -3,7 +3,7 @@
  * Aucun secret ni identifiant de ressource ici : tout passe par les propriétés de script.
  * Le dépôt peut être public.
  */
-const ORBIA_VERSION = '0.2.0-a2';
+const ORBIA_VERSION = '0.3.0-a3';
 
 const PROP = Object.freeze({
   GOOGLE_CLIENT_ID: 'ORBIA_GOOGLE_CLIENT_ID',
@@ -17,11 +17,16 @@ const PROP = Object.freeze({
   SPREADSHEET_ID: 'ORBIA_SPREADSHEET_ID',
   FOLDER_IDS: 'ORBIA_FOLDER_IDS',
   LAST_BACKUP: 'ORBIA_LAST_BACKUP',
-  LAST_RESTORE_TEST: 'ORBIA_LAST_RESTORE_TEST'
+  LAST_RESTORE_TEST: 'ORBIA_LAST_RESTORE_TEST',
+  BANK_MAPPINGS: 'ORBIA_BANK_MAPPINGS'
 });
 
 const LIMITS = Object.freeze({
-  MAX_BODY_CHARS: 100000,
+  MAX_BODY_CHARS: 6000000,
+  MAX_CSV_CHARS: 5000000,
+  MAX_CSV_ROWS: 20000,
+  CSV_ERRORS_LISTED: 20,
+  CSV_ALERT_WINDOW_SECONDS: 21600,
   LOG_SLOTS: 100,
   LOG_MESSAGE_CHARS: 500,
   TOKEN_CACHE_SECONDS: 300,
@@ -36,7 +41,7 @@ const ROLES = Object.freeze({ ADMIN: 'admin', COLLABORATEUR: 'collaborateur', LE
 
 /** Matrice des droits : tout ce qui n'est pas listé est refusé. */
 const ROLE_PERMISSIONS = Object.freeze({
-  admin: Object.freeze(['session:read', 'company:read', 'company:write', 'users:manage', 'logs:read', 'logs:write', 'storage:manage']),
-  collaborateur: Object.freeze(['session:read', 'company:read', 'logs:write']),
-  lecture: Object.freeze(['session:read', 'company:read', 'logs:write'])
+  admin: Object.freeze(['session:read', 'company:read', 'company:write', 'users:manage', 'logs:read', 'logs:write', 'storage:manage', 'bank:read', 'bank:import']),
+  collaborateur: Object.freeze(['session:read', 'company:read', 'logs:write', 'bank:read']),
+  lecture: Object.freeze(['session:read', 'company:read', 'logs:write', 'bank:read'])
 });
