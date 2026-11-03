@@ -148,6 +148,39 @@ const backend = createBackend();
   assert.deepEqual(problems, [], 'console stockage');
 }
 
+// Connexion : un rechargement ne redemande rien, la déconnexion oublie le jeton
+{
+  const { page, problems, context } = await session(backend, 'admin@example.test', PHONE);
+  await page.getByRole('heading', { name: 'Bonjour !' }).waitFor();
+  await page.reload();
+  await page.getByRole('heading', { name: 'Bonjour !' }).waitFor();
+  await page.locator('.account summary').click();
+  await page.getByRole('button', { name: 'Se déconnecter' }).first().click();
+  await page.getByRole('heading', { name: 'Connexion' }).waitFor();
+  assert.equal(await page.evaluate(() => localStorage.getItem('orbia.idToken')), null);
+  await page.reload();
+  await page.getByRole('heading', { name: 'Connexion' }).waitFor();
+  await context.close();
+  assert.deepEqual(problems, [], 'console connexion');
+}
+
+// Serveur en retard : l'accueil reste utilisable
+{
+  const b = createBackend();
+  const { page, context } = await session(b, 'admin@example.test', PHONE);
+  await page.getByRole('heading', { name: 'Bonjour !' }).waitFor();
+  await page.goto(origin + '#/plus');
+  await page.getByRole('link', { name: 'Comptabilité' }).waitFor();
+  await page.route(API, (r) => {
+    const body = JSON.parse(r.request().postData());
+    const answer = body.action === 'bank.summary' ? JSON.stringify({ ok: false, error: { code: 'BAD_REQUEST', message: 'La requête est invalide.', correlationId: 'x' } }) : b.sandbox.doPost({ postData: { contents: r.request().postData() } }).text;
+    return r.fulfill({ contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: answer });
+  });
+  await page.goto(origin + '#/');
+  await page.getByText('Le serveur Orbia doit être mis à jour').waitFor();
+  await context.close();
+}
+
 // Banque : import réel depuis l'interface, puis tableau de bord
 {
   const b = createBackend();

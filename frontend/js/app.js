@@ -153,7 +153,7 @@ async function start() {
     gate('Connexion Google indisponible', 'Le service de connexion n’a pas pu être chargé. Désactivez un éventuel bloqueur, puis réessayez.', retryButton());
     return;
   }
-  showSignIn();
+  if (currentToken()) loadSession(); else showSignIn();
 }
 
 if (window.top !== window.self) {

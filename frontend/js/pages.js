@@ -37,7 +37,13 @@ function todo(bank) {
 }
 
 export async function homeView(session) {
-  const bank = await api('bank.summary');
+  // Si le serveur a une version de retard, l'accueil reste utilisable.
+  let serverBehind = false;
+  const bank = await api('bank.summary').catch((err) => {
+    if (err.code !== 'BAD_REQUEST') throw err;
+    serverBehind = true;
+    return { count: 0, balanceCents: null, balanceDate: '', monthInCents: 0, monthOutCents: 0, unmatched: 0, missingMonths: [] };
+  });
   const hasData = bank.count > 0;
   const money = (v) => (hasData ? euro(v) : NONE);
   const balance = bank.balanceCents === null ? NONE : euro(bank.balanceCents);
@@ -46,6 +52,7 @@ export async function homeView(session) {
   const needsSetup = !session.company.legalName;
   return [
     title('Bonjour !', `Voici la situation de votre activité au ${today}.`),
+    serverBehind && h('div', { class: 'notice', role: 'status' }, h('p', {}, 'Le serveur Orbia doit être mis à jour : les données bancaires ne sont pas disponibles.')),
     needsSetup && h('div', { class: 'notice' },
       h('p', {}, 'Renseignez la société avant de commencer.'),
       session.permissions.includes('company:write')
