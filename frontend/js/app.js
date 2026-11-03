@@ -14,7 +14,7 @@ const SECTIONS = [
   { path: '/factures', label: 'Factures', icon: 'docs', tab: true },
   { path: '/projets', label: 'Événements', icon: 'calendar', optional: true },
   { path: '/tva', label: 'TVA', icon: 'vat' },
-  { path: '/deplacements', label: 'Déplacements', icon: 'car', tab: true },
+  { path: '/deplacements', label: 'Déplacements', icon: 'car' },
   { path: '/comptabilite', label: 'Comptabilité', icon: 'ledger' },
   { path: '/reglages', label: 'Réglages', icon: 'settings' }
 ];
@@ -63,7 +63,9 @@ function shell() {
         h('a', { class: 'rail-link', href: `#${s.path}`, 'aria-current': current(s) }, icon(s.icon), s.label)))),
     h('div', { class: 'content' },
       h('header', { class: 'topbar' },
-        h('a', { class: 'brand brand-mobile', href: '#/' }, 'orbia'),
+        h('div', { class: 'topbar-start' },
+          path !== '/' && h('a', { class: 'back', href: tabHit ? '#/' : (path === '/plus' ? '#/' : '#/plus'), 'aria-label': 'Retour' }, icon('back')),
+          h('a', { class: 'brand brand-mobile', href: '#/' }, 'orbia')),
         h('div', { class: 'topbar-end' }, account('')) ),
       main),
     h('nav', { class: 'tabbar', 'aria-label': 'Navigation principale' },

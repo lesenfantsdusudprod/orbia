@@ -15,6 +15,9 @@ const filters = (search, labels) => h('div', { class: 'filters', 'aria-hidden': 
 const empty = (iconName, heading, text) => h('div', { class: 'empty' }, h('span', { class: 'empty-icon' }, icon(iconName)), h('p', { class: 'row-title' }, heading), h('p', {}, text));
 const table = (columns) => h('div', { class: 'table-wrap' }, h('table', {},
   h('thead', {}, h('tr', {}, columns.map((c) => h('th', { scope: 'col', class: c.startsWith('=') ? 'num' : '' }, c.replace('=', '')))))));
+const mini = (label, iconName) => h('section', { class: 'mini' },
+  h('span', { class: 'stat-icon' }, icon(iconName)),
+  h('div', {}, h('p', { class: 'stat-note' }, label), h('p', { class: 'mini-value' }, NONE)));
 const stat = (label, iconName, note) => h('section', { class: 'stat' },
   h('div', { class: 'stat-label' }, label, h('span', { class: 'stat-icon' }, icon(iconName))),
   h('p', { class: 'stat-value' }, NONE),
@@ -30,12 +33,19 @@ export function homeView(session) {
       session.permissions.includes('company:write')
         ? h('a', { class: 'btn', href: '#/reglages' }, 'Configurer la société')
         : h('p', { class: 'muted' }, 'Un administrateur doit le faire.')),
-    h('div', { class: 'stats' },
+    h('section', { class: 'hero only-mobile', 'aria-label': 'Trésorerie' },
+      h('span', { class: 'hero-icon' }, icon('bank')),
+      h('div', {}, h('p', {}, 'Trésorerie'), h('p', { class: 'stat-value' }, NONE), h('p', { class: 'stat-note' }, 'Aucun relevé importé'))),
+    h('div', { class: 'pair only-mobile' }, mini('Encaissements ce mois-ci', 'in'), mini('Décaissements ce mois-ci', 'out')),
+    h('section', { class: 'card only-mobile' },
+      h('h2', {}, 'À traiter'),
+      h('p', { class: 'muted' }, 'Rien à traiter pour le moment.')),
+    h('div', { class: 'stats only-desktop' },
       stat('Trésorerie', 'bank', 'Aucun relevé importé'),
       stat('Recettes', 'chart', 'Aucune donnée'),
       stat('Dépenses', 'docs', 'Aucune donnée'),
       stat('TVA à payer', 'vat', 'Aucune période préparée')),
-    h('div', { class: 'home-grid' },
+    h('div', { class: 'home-grid only-desktop' },
       h('section', { class: 'card' },
         h('h2', {}, 'Trésorerie'),
         h('div', { class: 'chart-empty' }, h('span', {}, 'La courbe apparaîtra après votre premier import Qonto.'))),
@@ -51,8 +61,14 @@ function bankView() {
     h('section', { class: 'card import' },
       h('span', { class: 'stat-icon' }, icon('bank')),
       h('div', {}, h('p', { class: 'row-title' }, 'Importer un relevé bancaire'), h('p', { class: 'muted' }, 'Fichier CSV exporté depuis Qonto')),
-      soonButton('Importer depuis Qonto', 'upload')),
-    h('section', { class: 'card' },
+      h('span', { class: 'only-desktop' }, soonButton('Importer depuis Qonto', 'upload')),
+      h('span', { class: 'only-mobile soon' }, SOON)),
+    h('section', { class: 'card only-mobile' },
+      h('p', { class: 'stat-note' }, 'Solde du compte pro'),
+      h('p', { class: 'stat-value' }, NONE),
+      h('h2', {}, 'Dernières opérations'),
+      empty('bank', 'Aucune opération', 'Vos opérations apparaîtront ici après le premier import.')),
+    h('section', { class: 'card only-desktop' },
       tabs(['Toutes les opérations', 'Rapprochées', 'À rapprocher', 'Sans justificatif']),
       filters('Rechercher une opération', ['Période', 'Montant', 'Statut']),
       table(['Date', 'Libellé', '=Montant', 'Statut', 'Justificatif']),
@@ -63,6 +79,7 @@ function bankView() {
 function invoicesView() {
   return [
     title('Factures & documents', 'Centralisez vos factures, justificatifs et documents comptables.', soonButton('Ajouter un document', 'plus')),
+    h('div', { class: 'only-mobile' }, h('button', { class: 'btn btn-wide', disabled: true, title: SOON }, icon('camera'), 'Scanner une facture')),
     h('section', { class: 'card' },
       tabs(['Tous', 'Factures', 'Justificatifs', 'À vérifier', 'Archivés']),
       filters('Rechercher un document', ['Type', 'Période', 'Statut']),
@@ -86,7 +103,10 @@ function eventsView() {
 function vatView() {
   const rows = ['Opérations au taux normal', 'Opérations au taux réduit', 'Opérations exonérées'];
   return [
-    title('TVA mensuelle', 'Préparez et suivez vos déclarations de TVA (CA3).'),
+    h('header', { class: 'page-title' }, h('div', {},
+      h('h1', {}, h('span', { class: 'only-desktop' }, 'TVA mensuelle'), h('span', { class: 'only-mobile' }, 'Déclaration de TVA')),
+      h('p', {}, 'Préparez et suivez vos déclarations de TVA (CA3).'))),
+    h('div', { class: 'pair only-mobile' }, mini('TVA collectée', 'in'), mini('TVA déductible', 'out')),
     h('ol', { class: 'steps', 'aria-label': 'Étapes de la déclaration' },
       ['Données', 'Contrôles', 'Validation'].map((s, i) => h('li', { class: i === 0 ? 'on' : '' }, h('b', {}, String(i + 1)), s))),
     h('div', { class: 'tva-grid' },
@@ -95,7 +115,8 @@ function vatView() {
         h('div', { class: 'table-wrap' }, h('table', {},
           h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Opération'), h('th', { scope: 'col', class: 'num' }, 'Base imposable'), h('th', { scope: 'col', class: 'num' }, 'TVA'))),
           h('tbody', {}, rows.map((r) => h('tr', {}, h('td', {}, r), h('td', { class: 'num' }, NONE), h('td', { class: 'num' }, NONE)))))),
-        h('div', { class: 'tva-total' }, h('span', {}, 'TVA à payer'), h('span', {}, NONE))),
+        h('div', { class: 'tva-total' }, h('span', {}, 'TVA à payer'), h('span', {}, NONE)),
+        h('div', { class: 'only-mobile' }, h('button', { class: 'btn btn-wide', disabled: true, title: SOON }, 'Préparer la déclaration'))),
       h('section', { class: 'card' },
         h('h2', {}, 'Contrôles et alertes'),
         empty('vat', 'Aucun contrôle lancé', 'Les contrôles porteront sur vos pièces une fois la période préparée.')))

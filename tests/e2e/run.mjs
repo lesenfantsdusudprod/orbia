@@ -56,7 +56,7 @@ const backend = createBackend();
 {
   const { page, problems, context } = await session(backend, 'admin@example.test', PHONE);
   await page.getByRole('heading', { name: 'Bonjour !' }).waitFor();
-  assert.ok(await page.getByText('Aucun relevé importé').isVisible());
+  assert.ok(await page.getByText('Aucun relevé importé').first().isVisible());
   assert.ok(!/\d\s?€/.test(await page.locator('main').innerText()), 'aucun montant inventé');
   await noOverflow(page, 'accueil mobile');
 
@@ -150,7 +150,7 @@ const backend = createBackend();
 
 // Toutes les pages : rendu sans erreur, sans chiffre inventé, sur PC et mobile
 {
-  const pages = [['banque', 'Banque & rapprochement'], ['factures', 'Factures & documents'], ['projets', 'Événements'], ['tva', 'TVA mensuelle'], ['deplacements', 'Déplacements & notes de frais'], ['comptabilite', 'Comptabilité']];
+  const pages = [['banque', 'Banque & rapprochement'], ['factures', 'Factures & documents'], ['projets', 'Événements'], ['tva', /TVA/], ['deplacements', 'Déplacements & notes de frais'], ['comptabilite', 'Comptabilité']];
   for (const [viewport, tag] of [[DESK, 'pc'], [PHONE, 'mobile']]) {
     const { page, problems, context } = await session(backend, 'admin@example.test', viewport);
     await page.getByRole('heading', { name: 'Bonjour !' }).waitFor();

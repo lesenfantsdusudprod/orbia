@@ -57,7 +57,7 @@ button, input, select { font: inherit; color: inherit; }
 .page-head { display: grid; gap: 6px; }
 .page-head p { color: var(--ink-soft); }
 
-.tabbar { position: fixed; inset: auto 0 0 0; z-index: 10; display: grid; grid-template-columns: repeat(5, 1fr); background: var(--white); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
+.tabbar { position: fixed; inset: auto 0 0 0; z-index: 10; display: grid; grid-template-columns: repeat(4, 1fr); background: var(--white); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
 .tabbar a { min-height: 60px; display: grid; place-items: center; align-content: center; gap: 3px; font-size: 0.75rem; font-weight: 550; color: var(--ink-soft); text-decoration: none; }
 .tabbar a { font-size: 0.6875rem; }
 .tabbar a[aria-current="page"] { color: var(--terracotta); font-weight: 650; }
@@ -197,3 +197,22 @@ td.num, th.num { text-align: right; }
 }
 .brand { white-space: nowrap; flex: none; }
 @media (max-width: 619px) { .account-name { display: none; } }
+
+/* Maquette mobile */
+.topbar-start { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.back { width: 40px; height: 44px; margin-left: -10px; display: grid; place-items: center; color: var(--ink); }
+.back svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.hero { display: flex; align-items: center; gap: 14px; padding: 18px; border-radius: var(--radius-card); background: var(--sage-wash); }
+.hero p:first-child { font-weight: 600; }
+.hero-icon { width: 48px; height: 48px; flex: none; display: grid; place-items: center; border-radius: 50%; background: var(--sage); color: var(--white); }
+.hero-icon svg, .btn-wide svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.mini { display: grid; gap: 8px; align-content: start; padding: 14px; border-radius: var(--radius-card); background: var(--ivory-deep); min-width: 0; }
+.mini .stat-icon { background: var(--white); }
+.mini-value { font-size: 1.25rem; font-weight: 700; }
+.btn-wide { width: 100%; }
+@media (min-width: 900px) { .only-mobile { display: none !important; } .back { display: none; } }
+@media (max-width: 899px) {
+  .only-desktop { display: none !important; }
+  .main { gap: 18px; }
+}
