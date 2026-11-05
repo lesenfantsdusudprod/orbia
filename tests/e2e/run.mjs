@@ -181,6 +181,26 @@ const backend = createBackend();
   await context.close();
 }
 
+// Société : remplissage depuis le SIRET, sans enregistrement automatique
+{
+  const b = createBackend();
+  const { page, problems, context } = await session(b, 'admin@example.test', PHONE);
+  await page.getByRole('heading', { name: 'Bonjour !' }).waitFor();
+  await page.route('https://recherche-entreprises.api.gouv.fr/**', (r) => r.fulfill({ contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ results: [{ siren: '123456789', nom_raison_sociale: 'SOCIETE TEST', nature_juridique: '5710' }] }) }));
+  await page.goto(origin + '#/reglages');
+  await page.getByRole('button', { name: 'Remplir depuis le SIRET' }).click();
+  await page.getByText('Saisissez les 14 chiffres du SIRET.').waitFor();
+  await page.getByLabel('SIRET').fill('123 456 789 00011');
+  await page.getByRole('button', { name: 'Remplir depuis le SIRET' }).click();
+  await page.getByText('Vérifiez, puis enregistrez.').waitFor();
+  assert.equal(await page.getByLabel('Raison sociale').inputValue(), 'SOCIETE TEST');
+  assert.equal(await page.getByLabel('Forme juridique').inputValue(), 'SAS');
+  assert.equal(await page.getByLabel('SIREN').inputValue(), '123456789');
+  assert.equal(b.call('admin@example.test', 'session.get').data.company.legalName, '', 'rien enregistré sans validation');
+  await context.close();
+  assert.deepEqual(problems, [], 'console siret');
+}
+
 // Banque : import réel depuis l'interface, puis tableau de bord
 {
   const b = createBackend();

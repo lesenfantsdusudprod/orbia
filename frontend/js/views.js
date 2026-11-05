@@ -36,12 +36,59 @@ function settingsTabs(session, active) {
     tabs.map(([href, label]) => h('a', { href, 'aria-current': href === active ? 'page' : null }, label)));
 }
 
+const LEGAL_FORMS = { 5710: 'SAS', 5720: 'SASU', 5499: 'SARL', 5498: 'EURL', 5599: 'SA', 6540: 'SCI', 9220: 'Association' };
+
+/** Annuaire public de l'État : seul le SIRET saisi lui est envoyé. */
+async function findCompany(siret) {
+  const url = `https://recherche-entreprises.api.gouv.fr/search?q=${siret}`;
+  let body;
+  try {
+    const response = await fetch(url, { credentials: 'omit', referrerPolicy: 'no-referrer' });
+    body = await response.json();
+  } catch (err) {
+    throw new Error('L’annuaire des entreprises ne répond pas. Saisissez les informations à la main.');
+  }
+  const found = (body.results || []).find((r) => r.siren === siret.slice(0, 9));
+  if (!found) throw new Error('Aucune entreprise trouvée pour ce SIRET. Vérifiez le numéro.');
+  return found;
+}
+
 export function companyView(session, onSaved) {
   const editable = can(session, 'company:write');
   const c = session.company;
   const input = (name, attrs = {}) => h('input', { name, value: c[name], readOnly: !editable, autocomplete: 'off', ...attrs });
   const select = (name, pairs) => h('select', { name, disabled: !editable }, options(pairs, c[name]));
   const message = h('p', { role: 'status' });
+  const lookup = h('p', { role: 'status' });
+
+  async function fill(event) {
+    const button = event.currentTarget;
+    const form = button.form;
+    const siret = form.elements.siret.value.replace(/\s/g, '');
+    if (!/^\d{14}$/.test(siret)) {
+      lookup.className = 'form-error';
+      lookup.textContent = 'Saisissez les 14 chiffres du SIRET.';
+      return;
+    }
+    button.disabled = true;
+    lookup.className = 'muted';
+    lookup.textContent = 'Recherche en cours';
+    try {
+      const found = await findCompany(siret);
+      form.elements.legalName.value = found.nom_raison_sociale || found.nom_complet || '';
+      form.elements.siren.value = found.siren;
+      form.elements.siret.value = siret;
+      const legal = LEGAL_FORMS[found.nature_juridique];
+      if (legal) form.elements.legalForm.value = legal;
+      lookup.className = 'form-ok';
+      lookup.textContent = legal ? 'Vérifiez, puis enregistrez.' : 'Vérifiez, complétez la forme juridique, puis enregistrez.';
+    } catch (err) {
+      lookup.className = 'form-error';
+      lookup.textContent = err.message;
+    } finally {
+      button.disabled = false;
+    }
+  }
 
   async function submit(event) {
     event.preventDefault();
@@ -73,6 +120,7 @@ export function companyView(session, onSaved) {
         field('Forme juridique', input('legalForm', { maxlength: 40 })),
         field('SIREN', input('siren', { inputmode: 'numeric', maxlength: 11 })),
         field('SIRET', input('siret', { inputmode: 'numeric', maxlength: 17 }))),
+      editable && h('div', { class: 'form-foot' }, h('button', { class: 'btn btn-ghost', type: 'button', onclick: fill }, 'Remplir depuis le SIRET'), lookup),
       h('h2', {}, 'Exercice'),
       h('div', { class: 'form-grid' },
         field('Début', input('fiscalYearStart', { type: 'date' })),
