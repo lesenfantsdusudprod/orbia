@@ -37,7 +37,12 @@ export function createBackend({ props = {} } = {}) {
       formatDate: (d) => d.toISOString().slice(0, 7)
     },
     UrlFetchApp: {
-      fetch(url) {
+      fetch(url, options) {
+        if (url.startsWith('https://api.anthropic.com/')) {
+          state.aiCalls = (state.aiCalls || 0) + 1;
+          state.aiRequest = { url, options };
+          return { getResponseCode: () => state.aiStatus ?? 200, getContentText: () => JSON.stringify({ content: [{ type: 'text', text: state.aiText }] }) };
+        }
         state.tokenCalls++;
         const token = decodeURIComponent(url.split('id_token=')[1]);
         const claims = tokens.get(token);

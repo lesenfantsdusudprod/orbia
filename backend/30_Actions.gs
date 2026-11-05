@@ -145,6 +145,16 @@ const ACTIONS = Object.freeze({
     }
   },
 
+  'documents.extract': {
+    permission: 'documents:write',
+    run: (payload, ctx) => {
+      const id = asPlainObject_(payload).id;
+      const suggestion = ExtractionService.suggest(id);
+      LogRepository.append({ level: 'audit', code: 'DOCUMENT_SENT_TO_AI', action: ctx.action, actor: ctx.user.email, message: 'Document ' + id + ' envoyé au service de lecture.', correlationId: ctx.correlationId });
+      return { suggestion };
+    }
+  },
+
   'documents.validate': {
     permission: 'documents:validate',
     run: (payload, ctx) => {

@@ -349,6 +349,19 @@ async function invoiceDetailView(session, id) {
       input('vat', 'TVA', centsText(d.vatCents), { inputmode: 'decimal' }),
       input('gross', 'Montant TTC', centsText(d.grossCents), { inputmode: 'decimal' })),
     issues.length > 0 && h('ul', { class: 'errors' }, issues.map((i) => h('li', {}, i))));
+  const aiBtn = h('button', { class: 'btn btn-ghost', type: 'button' }, 'Lire avec l’IA');
+  aiBtn.addEventListener('click', async () => {
+    aiBtn.disabled = true;
+    say('Lecture en cours', true);
+    try {
+      const { suggestion: g } = await api('documents.extract', { id });
+      const put = (name, value) => { if (value) form.elements[name].value = value; };
+      put('type', g.type); put('supplier', g.supplier); put('date', g.date); put('invoiceNumber', g.invoiceNumber);
+      put('net', g.net); put('vat', g.vat); put('gross', g.gross);
+      say(g.uncertain.length ? `Vérifiez tout, surtout : ${g.uncertain.join(', ')}. Rien n’est enregistré pour l’instant.` : 'Vérifiez les valeurs proposées. Rien n’est enregistré pour l’instant.', true);
+    } catch (err) { say(err.message, false); }
+    aiBtn.disabled = false;
+  });
   const saveBtn = h('button', { class: 'btn btn-ghost', type: 'button' }, 'Enregistrer');
   saveBtn.addEventListener('click', run(saveBtn, () => save(form), 'Document enregistré.'));
   const validateBtn = h('button', { class: 'btn', type: 'button' }, 'Valider le document');
@@ -357,7 +370,7 @@ async function invoiceDetailView(session, id) {
   const reopenBtn = h('button', { class: 'btn btn-ghost', type: 'button' }, 'Rouvrir le document');
   reopenBtn.addEventListener('click', run(reopenBtn, () => api('documents.reopen', { id, reason: reason.value }), 'Document rouvert.'));
   form.append(h('div', { class: 'form-foot' },
-    canWrite && saveBtn, canWrite && canValidate && validateBtn,
+    canWrite && aiBtn, canWrite && saveBtn, canWrite && canValidate && validateBtn,
     locked && canValidate && reason, locked && canValidate && reopenBtn), message);
 
   return [

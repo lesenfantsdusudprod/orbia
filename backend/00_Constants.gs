@@ -3,7 +3,7 @@
  * Aucun secret ni identifiant de ressource ici : tout passe par les propriétés de script.
  * Le dépôt peut être public.
  */
-const ORBIA_VERSION = '0.4.0-a4';
+const ORBIA_VERSION = '0.5.0-a4';
 
 const PROP = Object.freeze({
   GOOGLE_CLIENT_ID: 'ORBIA_GOOGLE_CLIENT_ID',
@@ -18,12 +18,15 @@ const PROP = Object.freeze({
   FOLDER_IDS: 'ORBIA_FOLDER_IDS',
   LAST_BACKUP: 'ORBIA_LAST_BACKUP',
   LAST_RESTORE_TEST: 'ORBIA_LAST_RESTORE_TEST',
-  BANK_MAPPINGS: 'ORBIA_BANK_MAPPINGS'
+  BANK_MAPPINGS: 'ORBIA_BANK_MAPPINGS',
+  ANTHROPIC_KEY: 'ORBIA_ANTHROPIC_API_KEY',
+  ANTHROPIC_MODEL: 'ORBIA_ANTHROPIC_MODEL'
 });
 
 const LIMITS = Object.freeze({
   MAX_BODY_CHARS: 15000000,
   MAX_DOCUMENT_BYTES: 10000000,
+  MAX_IMAGE_FOR_AI_BYTES: 5000000,
   MAX_CSV_CHARS: 5000000,
   MAX_CSV_ROWS: 20000,
   CSV_ERRORS_LISTED: 20,

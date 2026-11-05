@@ -583,3 +583,52 @@ test('A4 : un texte hostile dans un document reste du texte', () => {
   assert.equal(book(b).tabs.Documents[1][4], '=IMPORTXML("x")');
   assert.equal(code(b.call(ADMIN, 'documents.update', { id, ...fields, gross: 'abc' })), 'VALIDATION');
 });
+
+const aiOk = JSON.stringify({ type: 'facture_recue', supplier: 'Atelier', date: '2026-10-14', invoiceNumber: 'F1', net: '100,00', vat: '20,00', gross: '120,00', uncertain: ['net', 'inconnu'] });
+
+test('A4 : l\'IA propose, rien n\'est enregistré ni validé sans relecture', () => {
+  const b = ready();
+  const id = up(b).data.document.id;
+  assert.equal(code(b.call(ADMIN, 'documents.extract', { id })), 'AI_KEY');
+  b.store.ORBIA_ANTHROPIC_API_KEY = 'cle-secrete-test';
+  b.state.aiText = 'Voici : ' + aiOk;
+  const r = b.call(ADMIN, 'documents.extract', { id });
+  assert.equal(r.data.suggestion.gross, '120,00');
+  assert.deepEqual(r.data.suggestion.uncertain, ['net']);
+  const d = b.call(ADMIN, 'documents.list', { id }).data.document;
+  assert.equal(d.supplier, ''); assert.equal(d.validationStatus, 'a_verifier');
+  assert.ok(!JSON.stringify(r).includes('cle-secrete-test'));
+  assert.ok(book(b).tabs.AuditLog.some((row) => row.includes('DOCUMENT_SENT_TO_AI')));
+});
+
+test('A4 : réponse IA filtrée, valeurs farfelues écartées, panne sans fuite', () => {
+  const b = ready();
+  const id = up(b).data.document.id;
+  b.store.ORBIA_ANTHROPIC_API_KEY = 'cle-secrete-test';
+  b.state.aiText = JSON.stringify({ type: 'virus', date: '14 octobre', gross: 'beaucoup', supplier: 42 });
+  const g = b.call(ADMIN, 'documents.extract', { id }).data.suggestion;
+  assert.deepEqual([g.type, g.date, g.gross, g.supplier], ['', '', '', '']);
+  b.state.aiText = 'je ne sais pas';
+  assert.equal(code(b.call(ADMIN, 'documents.extract', { id })), 'AI_UNREADABLE');
+  for (const [status, expected] of [[401, 'AI_KEY'], [529, 'AI_BUSY'], [400, 'AI_REFUSED']]) {
+    b.state.aiStatus = status;
+    const r = b.call(ADMIN, 'documents.extract', { id });
+    assert.equal(code(r), expected);
+    assert.ok(!JSON.stringify(r).includes('cle-secrete-test'));
+  }
+});
+
+test('A4 : la lecture IA est interdite en lecture seule et sur un document inconnu', () => {
+  const b = ready();
+  b.store.ORBIA_ANTHROPIC_API_KEY = 'x';
+  b.call(ADMIN, 'users.save', { email: 'lecteur@example.test', role: 'lecture', active: true });
+  const id = up(b).data.document.id;
+  assert.equal(code(b.call('lecteur@example.test', 'documents.extract', { id })), 'FORBIDDEN');
+  assert.equal(code(b.call(ADMIN, 'documents.extract', { id: 'nimporte' })), 'VALIDATION');
+  assert.equal(b.state.aiCalls ?? 0, 0);
+});
+
+test('A4 : aucune clé dans le code livré', () => {
+  const bundle = readFileSync(new URL('../dist/Orbia_backend.gs', import.meta.url), 'utf8');
+  assert.ok(!/sk-ant-/.test(bundle));
+});

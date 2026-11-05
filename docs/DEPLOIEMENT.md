@@ -111,3 +111,7 @@ Le PDF est lu dans le navigateur et converti, puis suit le contrôle habituel. C
 1. Remplacez tout `Code.gs` par `dist/Orbia_backend.gs`. Contrôlez que le fichier se termine bien par `orbiaCheckSetup`.
 2. **Déployer > Gérer les déploiements**, sélectionnez le déploiement actif utilisé par `ORBIA_API_URL`, crayon, **Nouvelle version**, **Déployer**.
 3. N'utilisez jamais **Nouveau déploiement** : l'adresse changerait.
+
+## Lecture des factures par IA
+
+Propriété de script requise : `ORBIA_ANTHROPIC_API_KEY`. `ORBIA_ANTHROPIC_MODEL` est facultative. Un document n'est envoyé qu'après un clic sur **Lire avec l'IA**, et les valeurs proposées ne sont enregistrées qu'après relecture.
