@@ -163,7 +163,7 @@ async function bankView(session) {
       h('div', { class: 'form-foot' }, check, h('button', { class: 'btn btn-ghost', type: 'button', onclick: () => wizard.replaceChildren() }, 'Annuler'))));
   }
 
-  const input = h('input', { type: 'file', accept: '.csv,text/csv', class: 'sr-only', 'aria-label': 'Choisir un fichier CSV', onchange: async () => {
+  const input = h('input', { type: 'file', accept: '.csv,text/csv,text/comma-separated-values,application/csv,application/vnd.ms-excel,text/plain', class: 'sr-only', 'aria-label': 'Choisir un fichier CSV', onchange: async () => {
     const chosen = input.files[0];
     input.value = '';
     if (!chosen) return;
