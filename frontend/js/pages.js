@@ -133,7 +133,9 @@ async function bankView(session) {
         r.firstDate && h('div', { class: 'row' }, h('p', { class: 'row-main' }, 'Période'), h('span', {}, `${dayFr(r.firstDate)} au ${dayFr(r.lastDate)}`))),
       file.statement && h('div', { class: 'notice' },
         h('p', {}, `Lu dans le PDF : ${file.statement.count} opération(s), ${euro(file.statement.inCents)} d’entrées et ${euro(file.statement.outCents)} de sorties.`),
-        h('p', {}, h('strong', {}, 'Comparez ces totaux à ceux de votre relevé avant d’importer.'), ' Un PDF peut être mal lu.')),
+        file.statement.checked
+          ? h('p', {}, 'Ces totaux correspondent à ceux imprimés sur le relevé.')
+          : h('p', {}, h('strong', {}, 'Comparez ces totaux à ceux de votre relevé avant d’importer.'), ' Un PDF peut être mal lu.')),
       r.errors.length > 0 && h('ul', { class: 'errors' }, r.errors.map((e) => h('li', {}, e))),
       r.errorCount > 0 && h('p', { class: 'form-error' }, 'Corrigez le fichier ou les colonnes : rien ne sera importé tant qu’il reste une erreur.'),
       r.errorCount === 0 && r.newCount === 0 && h('p', { class: 'muted' }, 'Toutes ces opérations sont déjà dans Orbia.'),
