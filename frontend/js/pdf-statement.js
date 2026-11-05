@@ -1,0 +1,100 @@
+/**
+ * Relevé PDF → CSV, entièrement dans le navigateur : le fichier ne quitte pas l'appareil.
+ * Le CSV obtenu suit ensuite le chemin normal (colonnes, contrôle, revue, import).
+ * Un PDF n'est pas une donnée structurée : tout doute arrête la lecture.
+ */
+const DATE_START = /^(\d{2})[/.-](\d{2})(?:[/.-](\d{2,4}))?(?=\s|$)/;
+const AMOUNT_END = /([+\-−]\s?)?(\d{1,3}(?:[   .]\d{3})*,\d{2})\s*(?:€|EUR)?\s*([+\-−])?$/;
+const NOISE = /^(solde|total|page\s|qonto|iban|bic|olinda|siret|rcs|capital|date\b)/i;
+
+function toRows(items) {
+  const rows = [];
+  items.slice().sort((a, b) => a.page - b.page || b.y - a.y || a.x - b.x).forEach((item) => {
+    if (!item.text.trim()) return;
+    const row = rows.find((r) => r.page === item.page && Math.abs(r.y - item.y) <= 2);
+    if (row) row.items.push(item); else rows.push({ page: item.page, y: item.y, items: [item] });
+  });
+  rows.forEach((r) => {
+    r.items.sort((a, b) => a.x - b.x);
+    r.text = r.items.map((i) => i.text.trim()).join(' ').replace(/\s+/g, ' ').trim();
+  });
+  return rows;
+}
+
+function centsOf(text) {
+  return Number(text.replace(/[   .]/g, '').replace(',', ''));
+}
+
+/** Sans signe, seul l'alignement sous « Débit » ou « Crédit » donne le sens. */
+function signFromColumns(row, columns) {
+  if (!columns) return 0;
+  const last = row.items[row.items.length - 1];
+  const distance = (x) => Math.abs(last.x - x);
+  return distance(columns.debit) < distance(columns.credit) ? -1 : 1;
+}
+
+export function parseStatement(items) {
+  const rows = toRows(items);
+  const whole = rows.map((r) => r.text).join('\n');
+  const yearMatch = whole.match(/\b(20\d{2})\b/);
+  let columns = null;
+  const ops = [];
+  let current = null;
+
+  rows.forEach((row) => {
+    const debit = row.items.find((i) => /^d[ée]bit/i.test(i.text.trim()));
+    const credit = row.items.find((i) => /^cr[ée]dit/i.test(i.text.trim()));
+    if (debit && credit) { columns = { debit: debit.x, credit: credit.x }; current = null; return; }
+
+    const date = row.text.match(DATE_START);
+    const amount = row.text.match(AMOUNT_END);
+    if (date && amount) {
+      const year = date[3] ? (date[3].length === 2 ? `20${date[3]}` : date[3]) : yearMatch && yearMatch[1];
+      if (!year) throw new Error('Année introuvable dans ce relevé.');
+      let label = row.text.slice(date[0].length, amount.index).trim();
+      label = label.replace(/^\d{2}[/.-]\d{2}(?:[/.-]\d{2,4})?\s*/, '').trim();
+      if (/^(solde|total)/i.test(label)) { current = null; return; }
+      const signText = amount[1] || amount[3] || '';
+      const sign = signText ? (signText.trim() === '+' ? 1 : -1) : signFromColumns(row, columns);
+      if (!sign) throw new Error(`Sens de l’opération impossible à déterminer : ${label}.`);
+      current = { date: `${year}-${date[2]}-${date[1]}`, label, cents: sign * centsOf(amount[2]) };
+      ops.push(current);
+      return;
+    }
+    if (current && !amount && !NOISE.test(row.text)) current.label = `${current.label} ${row.text}`.trim();
+    else current = null;
+  });
+
+  if (!ops.length) throw new Error('Aucune opération reconnue dans ce PDF. Utilisez l’export CSV de Qonto.');
+  if (ops.some((o) => !o.label)) throw new Error('Une opération sans libellé a été trouvée : ce PDF n’est pas lisible avec certitude.');
+  return ops;
+}
+
+const euros = (cents) => {
+  const abs = Math.abs(cents);
+  return `${cents < 0 ? '-' : ''}${Math.floor(abs / 100)},${String(abs % 100).padStart(2, '0')}`;
+};
+
+export function toCsv(ops) {
+  const quote = (t) => `"${t.replace(/"/g, '""')}"`;
+  return `Date;Libellé;Montant\n${ops.map((o) => `${o.date};${quote(o.label)};${euros(o.cents)}`).join('\n')}\n`;
+}
+
+export async function readStatement(file) {
+  const pdfjs = await import('../vendor/pdfjs/pdf.min.mjs');
+  pdfjs.GlobalWorkerOptions.workerSrc = new URL('../vendor/pdfjs/pdf.worker.min.mjs', import.meta.url).href;
+  const doc = await pdfjs.getDocument({ data: await file.arrayBuffer(), isEvalSupported: false }).promise;
+  const items = [];
+  for (let n = 1; n <= doc.numPages; n++) {
+    const page = await doc.getPage(n);
+    const content = await page.getTextContent();
+    content.items.forEach((i) => { if (i.str) items.push({ page: n, text: i.str, x: i.transform[4], y: i.transform[5] }); });
+  }
+  const ops = parseStatement(items);
+  return {
+    csv: toCsv(ops),
+    count: ops.length,
+    inCents: ops.filter((o) => o.cents > 0).reduce((s, o) => s + o.cents, 0),
+    outCents: ops.filter((o) => o.cents < 0).reduce((s, o) => s - o.cents, 0)
+  };
+}

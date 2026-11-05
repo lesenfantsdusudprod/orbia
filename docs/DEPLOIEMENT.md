@@ -101,3 +101,7 @@ Une restauration fait basculer Orbia sur une copie de la sauvegarde. L'ancien cl
 | Déposer un CSV de même format dans `Imports_CSV` | Importé dans l'heure, puis déplacé dans `Archives_imports` |
 
 Le solde affiché est celui du dernier relevé, jamais un solde en temps réel. Les encaissements et décaissements sont des flux bancaires, pas du chiffre d'affaires.
+
+## Relevés PDF
+
+Le PDF est lu dans le navigateur et converti, puis suit le contrôle habituel. Comparez toujours les totaux affichés à ceux du relevé. N'importez pas la même période en PDF et en CSV : les libellés diffèrent, et les opérations seraient comptées deux fois.

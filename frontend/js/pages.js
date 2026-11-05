@@ -1,5 +1,6 @@
 import { h, icon, field } from './dom.js';
 import { api } from './api.js';
+import { readStatement } from './pdf-statement.js';
 
 /*
  * Pages métier. Elles reprennent la maquette, sans aucune donnée inventée :
@@ -130,6 +131,9 @@ async function bankView(session) {
         h('div', { class: 'row' }, h('p', { class: 'row-main' }, 'Déjà présentes'), h('span', {}, String(r.valid - r.newCount))),
         h('div', { class: 'row' }, h('p', { class: 'row-main' }, 'Lignes en erreur'), h('span', { class: r.errorCount ? 'status status-error' : '' }, String(r.errorCount))),
         r.firstDate && h('div', { class: 'row' }, h('p', { class: 'row-main' }, 'Période'), h('span', {}, `${dayFr(r.firstDate)} au ${dayFr(r.lastDate)}`))),
+      file.statement && h('div', { class: 'notice' },
+        h('p', {}, `Lu dans le PDF : ${file.statement.count} opération(s), ${euro(file.statement.inCents)} d’entrées et ${euro(file.statement.outCents)} de sorties.`),
+        h('p', {}, h('strong', {}, 'Comparez ces totaux à ceux de votre relevé avant d’importer.'), ' Un PDF peut être mal lu.')),
       r.errors.length > 0 && h('ul', { class: 'errors' }, r.errors.map((e) => h('li', {}, e))),
       r.errorCount > 0 && h('p', { class: 'form-error' }, 'Corrigez le fichier ou les colonnes : rien ne sera importé tant qu’il reste une erreur.'),
       r.errorCount === 0 && r.newCount === 0 && h('p', { class: 'muted' }, 'Toutes ces opérations sont déjà dans Orbia.'),
@@ -163,14 +167,16 @@ async function bankView(session) {
       h('div', { class: 'form-foot' }, check, h('button', { class: 'btn btn-ghost', type: 'button', onclick: () => wizard.replaceChildren() }, 'Annuler'))));
   }
 
-  const input = h('input', { type: 'file', accept: '.csv,text/csv,text/comma-separated-values,application/csv,application/vnd.ms-excel,text/plain', class: 'sr-only', 'aria-label': 'Choisir un fichier CSV', onchange: async () => {
+  const input = h('input', { type: 'file', accept: '.csv,.pdf,application/pdf,text/csv,text/comma-separated-values,application/csv,application/vnd.ms-excel,text/plain', class: 'sr-only', 'aria-label': 'Choisir un fichier CSV', onchange: async () => {
     const chosen = input.files[0];
     input.value = '';
     if (!chosen) return;
     if (chosen.size > 4000000) { say('Ce fichier dépasse 4 Mo. Importez une période plus courte.', false); return; }
     say('Lecture du fichier', true);
     try {
-      file = { name: chosen.name, content: await readCsv(chosen) };
+      const isPdf = /\.pdf$/i.test(chosen.name) || chosen.type === 'application/pdf';
+      const statement = isPdf ? await readStatement(chosen) : null;
+      file = { name: chosen.name, content: statement ? statement.csv : await readCsv(chosen), statement };
       const preview = await api('bank.preview', { content: file.content });
       say('', true);
       showMapping(preview);
@@ -190,7 +196,7 @@ async function bankView(session) {
   const importCard = h('section', { class: 'card' },
     h('div', { class: 'import' },
       h('span', { class: 'stat-icon' }, icon('bank')),
-      h('div', {}, h('p', { class: 'row-title' }, 'Importer un relevé bancaire'), h('p', { class: 'muted' }, 'Fichier CSV exporté depuis Qonto'))),
+      h('div', {}, h('p', { class: 'row-title' }, 'Importer un relevé bancaire'), h('p', { class: 'muted' }, 'Fichier CSV ou PDF de Qonto'))),
     !list.ready
       ? h('p', { class: 'muted' }, canImport ? 'Créez d’abord l’espace Orbia dans Réglages, Stockage.' : 'Un administrateur doit d’abord créer l’espace Orbia.')
       : canImport

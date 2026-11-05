@@ -14,7 +14,7 @@ const API = 'https://script.google.com/macros/s/TEST/exec';
 const root = fileURLToPath(new URL('../../frontend/', import.meta.url));
 const shots = fileURLToPath(new URL('./shots/', import.meta.url));
 await mkdir(shots, { recursive: true });
-const types = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.webmanifest': 'application/manifest+json' };
+const types = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.mjs': 'text/javascript', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.webmanifest': 'application/manifest+json' };
 const server = createServer(async (req, res) => {
   const path = decodeURIComponent(req.url.split('?')[0]).replace(/\/$/, '/index.html');
   try { res.writeHead(200, { 'content-type': types[extname(path)] || 'text/plain' }).end(await readFile(join(root, path))); }
@@ -226,6 +226,24 @@ const backend = createBackend();
   await page.screenshot({ path: shots + 'accueil-rempli-mobile.png' });
   await context.close();
   assert.deepEqual(problems, [], 'console banque');
+}
+
+// Relevé PDF : lu dans le navigateur, revu, puis importé
+{
+  const b = createBackend();
+  b.call('admin@example.test', 'storage.init');
+  const { page, problems, context } = await session(b, 'admin@example.test', PHONE);
+  await page.getByRole('heading', { name: 'Bonjour !' }).waitFor();
+  await page.goto(origin + '#/banque');
+  await page.locator('input[type=file]').setInputFiles(fileURLToPath(new URL('../fixtures/releve-fictif.pdf', import.meta.url)));
+  await page.getByRole('heading', { name: 'Confirmez les colonnes' }).waitFor({ timeout: 20000 });
+  await page.getByRole('button', { name: 'Vérifier le fichier' }).click();
+  await page.getByText('Lu dans le PDF : 3 opération(s)').waitFor();
+  await page.screenshot({ path: shots + 'import-pdf-mobile.png', fullPage: true });
+  await page.getByRole('button', { name: 'Importer 3 opération(s)' }).click();
+  await page.getByText('SNCF billet').first().waitFor();
+  await context.close();
+  assert.deepEqual(problems, [], 'console pdf');
 }
 
 // Toutes les pages : rendu sans erreur, sans chiffre inventé, sur PC et mobile

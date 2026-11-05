@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "bundle": "node scripts/bundle-backend.mjs",
-    "test": "node scripts/bundle-backend.mjs && node --test tests/backend.test.mjs",
+    "test": "node scripts/bundle-backend.mjs && node --test tests/backend.test.mjs tests/statement.test.mjs",
     "test:e2e": "node tests/e2e/run.mjs"
   }
 }
