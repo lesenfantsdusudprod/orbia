@@ -29,7 +29,10 @@ export function createBackend({ props = {} } = {}) {
     Utilities: {
       getUuid: randomUUID,
       DigestAlgorithm: { SHA_256: 'sha256' }, Charset: { UTF_8: 'utf8' },
-      computeDigest: (_, v) => [...createHash('sha256').update(v).digest()],
+      computeDigest: (_, v) => [...createHash('sha256').update(typeof v === 'string' ? v : Buffer.from(v)).digest()],
+      base64Decode: (t) => [...Buffer.from(t, 'base64')],
+      base64Encode: (b) => Buffer.from(b).toString('base64'),
+      newBlob: (bytes, mime, name) => ({ bytes, mime, name }),
       base64EncodeWebSafe: (b) => Buffer.from(b).toString('base64url'),
       formatDate: (d) => d.toISOString().slice(0, 7)
     },
@@ -56,7 +59,7 @@ export function createBackend({ props = {} } = {}) {
   const makeFile = (name, parent, mime, bookId) => {
     const file = { id: bookId || newId('file'), name, parent, mime, access: 'PRIVATE',
       setTrashed(v) { this.trashed = v; },
-      getBlob() { return { getDataAsString: () => this.content }; },
+      getBlob() { return { getDataAsString: () => this.content, getBytes: () => this.bytes, getContentType: () => this.mime }; },
       getId() { return this.id; }, getName() { return this.name; }, getUrl() { return 'https://drive.test/' + this.id; }, getSharingAccess() { return this.access; },
       moveTo(folder) { this.parent = folder.id; },
       makeCopy(n, folder) { const nb = newId('book'); drive.books.set(nb, makeBook(nb, structuredClone(drive.books.get(this.id).tabs))); const c = makeFile(n, folder.id, 'sheet', nb); return c; } };
@@ -69,7 +72,7 @@ export function createBackend({ props = {} } = {}) {
       getId() { return this.id; }, getUrl() { return 'https://drive.test/' + this.id; }, getSharingAccess() { return this.access; },
       createFolder(n) { maybeFail('createFolder:' + n); return makeFolder(n, this.id); },
       getFoldersByName(n) { return iterator([...drive.folders.values()].filter((f) => f.parent === this.id && f.name === n)); },
-      createFile(n, content, mime) { const f = makeFile(n, this.id, mime); f.content = content; return f; },
+      createFile(n, content, mime) { if (typeof n === 'object') { const f = makeFile(n.name, this.id, n.mime); f.bytes = n.bytes; return f; } const f = makeFile(n, this.id, mime); f.content = content; return f; },
       getFiles() { return iterator([...drive.files.values()].filter((f) => f.parent === this.id)); },
       getFilesByType(type) { return iterator([...drive.files.values()].filter((f) => f.parent === this.id && f.mime === type)); } };
     drive.folders.set(folder.id, folder);

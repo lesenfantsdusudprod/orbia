@@ -225,3 +225,10 @@ td.num, th.num { text-align: right; }
 .amount-in { color: var(--sage); font-weight: 650; white-space: nowrap; }
 .amount-out { color: var(--terracotta); font-weight: 650; white-space: nowrap; }
 .errors { margin: 0; padding-left: 18px; color: var(--terracotta); font-size: 0.875rem; overflow-wrap: anywhere; }
+
+/* Factures */
+.doc-link { color: inherit; text-decoration: none; }
+.doc-preview img { display: block; width: 100%; height: auto; border-radius: var(--radius-control); }
+.drop .actions { width: min(100%, 420px); }
+.drop { align-content: start; }
+.drop.card { padding: 16px; }

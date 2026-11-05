@@ -116,6 +116,57 @@ const ACTIONS = Object.freeze({
     run: () => BankService.scanFolder_()
   },
 
+  'documents.list': {
+    permission: 'documents:read',
+    run: (payload) => DocumentService.list(asPlainObject_(payload))
+  },
+
+  'documents.file': {
+    permission: 'documents:read',
+    run: (payload) => DocumentService.file(asPlainObject_(payload).id)
+  },
+
+  'documents.upload': {
+    permission: 'documents:write',
+    run: (payload, ctx) => {
+      const result = withLock_(() => DocumentService.upload_(asPlainObject_(payload), ctx.user.email), LIMITS.STORAGE_LOCK_WAIT_MS);
+      if (!result.duplicate) LogRepository.append({ level: 'audit', code: 'DOCUMENT_ADDED', action: ctx.action, actor: ctx.user.email, message: 'Document ajouté : ' + result.document.fileName + '.', correlationId: ctx.correlationId });
+      return result;
+    }
+  },
+
+  'documents.update': {
+    permission: 'documents:write',
+    run: (payload, ctx) => {
+      const data = asPlainObject_(payload);
+      const result = withLock_(() => DocumentService.update_(data), LIMITS.STORAGE_LOCK_WAIT_MS);
+      LogRepository.append({ level: 'audit', code: 'DOCUMENT_UPDATED', action: ctx.action, actor: ctx.user.email, message: 'Document ' + result.document.id + ' : ' + result.changes + '.', correlationId: ctx.correlationId });
+      return result;
+    }
+  },
+
+  'documents.validate': {
+    permission: 'documents:validate',
+    run: (payload, ctx) => {
+      const id = asPlainObject_(payload).id;
+      const document = withLock_(() => DocumentService.setStatus_(id, 'valide'), LIMITS.STORAGE_LOCK_WAIT_MS);
+      LogRepository.append({ level: 'audit', code: 'DOCUMENT_VALIDATED', action: ctx.action, actor: ctx.user.email, message: 'Document validé : ' + document.id + '.', correlationId: ctx.correlationId });
+      return { document };
+    }
+  },
+
+  'documents.reopen': {
+    permission: 'documents:validate',
+    run: (payload, ctx) => {
+      const data = asPlainObject_(payload);
+      const reason = cleanString_(data.reason, 'Motif', 200);
+      if (!reason) throw ERR.validation('Indiquez le motif de la réouverture.');
+      const document = withLock_(() => DocumentService.setStatus_(data.id, 'a_verifier'), LIMITS.STORAGE_LOCK_WAIT_MS);
+      LogRepository.append({ level: 'audit', code: 'DOCUMENT_REOPENED', action: ctx.action, actor: ctx.user.email, message: 'Document rouvert : ' + document.id + '. Motif : ' + reason, correlationId: ctx.correlationId });
+      return { document };
+    }
+  },
+
   'logs.list': {
     permission: 'logs:read',
     run: () => ({ entries: LogRepository.list() })

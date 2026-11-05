@@ -10,6 +10,10 @@ function hexDigest_(text) {
     .map((byte) => ('0' + (byte & 255).toString(16)).slice(-2)).join('');
 }
 
+function hexBytes_(bytes) {
+  return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, bytes).map((byte) => ('0' + (byte & 255).toString(16)).slice(-2)).join('');
+}
+
 function detectDelimiter_(text) {
   const line = text.split(/\r?\n/, 1)[0];
   const counts = [';', ',', '\t'].map((d) => ({ d, n: line.split(d).length - 1 }));

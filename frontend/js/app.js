@@ -2,7 +2,7 @@ import { h, icon } from './dom.js';
 import { api, setTokenProvider, setAccessLostHandler } from './api.js';
 import { initAuth, renderSignIn, currentToken, clearToken, signOut } from './auth.js';
 import { upcomingView, moreView, companyView, usersView, logsView, storageView } from './views.js';
-import { homeView, PAGES } from './pages.js';
+import { homeView, PAGES, documentDetail } from './pages.js';
 
 const root = document.getElementById('app');
 let session = null;
@@ -86,6 +86,7 @@ async function resolveView(path) {
   if (path === '/reglages/utilisateurs' && session.permissions.includes('users:manage')) return usersView(session);
   if (path === '/reglages/stockage' && session.permissions.includes('storage:manage')) return storageView(session);
   if (path === '/reglages/journal' && session.permissions.includes('logs:read')) return logsView(session);
+  if (path.startsWith('/factures/')) return documentDetail(session, path.slice('/factures/'.length));
   if (PAGES[path] && (path !== '/projets' || session.company.projectsEnabled)) return PAGES[path](session);
   return upcomingView('Page introuvable', 'Cette adresse ne correspond à aucune page.');
 }

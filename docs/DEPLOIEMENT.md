@@ -105,3 +105,9 @@ Le solde affiché est celui du dernier relevé, jamais un solde en temps réel. 
 ## Relevés PDF
 
 Le PDF est lu dans le navigateur et converti, puis suit le contrôle habituel. Comparez toujours les totaux affichés à ceux du relevé. N'importez pas la même période en PDF et en CSV : les libellés diffèrent, et les opérations seraient comptées deux fois.
+
+## Mise à jour vers A4
+
+1. Remplacez tout `Code.gs` par `dist/Orbia_backend.gs`. Contrôlez que le fichier se termine bien par `orbiaCheckSetup`.
+2. **Déployer > Gérer les déploiements**, sélectionnez le déploiement actif utilisé par `ORBIA_API_URL`, crayon, **Nouvelle version**, **Déployer**.
+3. N'utilisez jamais **Nouveau déploiement** : l'adresse changerait.

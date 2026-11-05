@@ -29,17 +29,21 @@ const stat = (label, iconName, note, value = NONE) => h('section', { class: 'sta
   h('p', { class: 'stat-value' }, value),
   h('p', { class: 'stat-note' }, note));
 
-function todo(bank) {
+function todo(bank, toVerify = 0) {
   const items = [];
+  const links = {};
+  if (toVerify) { const t = `${toVerify} document${toVerify > 1 ? 's' : ''} à vérifier`; items.push(t); links[t] = '#/factures'; }
   if (bank.unmatched) items.push(`${bank.unmatched} opération${bank.unmatched > 1 ? 's' : ''} à rapprocher`);
   bank.missingMonths.slice(0, 3).forEach((m) => items.push(`Relevé manquant : ${monthFr(m)}`));
   if (!items.length) return h('p', { class: 'muted' }, 'Rien à traiter pour le moment.');
-  return h('div', {}, items.map((t) => h('a', { class: 'more-link', href: '#/banque' }, t, icon('chevron'))));
+  return h('div', {}, items.map((t) => h('a', { class: 'more-link', href: links[t] || '#/banque' }, t, icon('chevron'))));
 }
 
 export async function homeView(session) {
   // Si le serveur a une version de retard, l'accueil reste utilisable.
   let serverBehind = false;
+  const docs = await api('documents.list').catch(() => ({ items: [] }));
+  const toVerify = docs.items.filter((d) => d.validationStatus !== 'valide').length;
   const bank = await api('bank.summary').catch((err) => {
     if (err.code !== 'BAD_REQUEST') throw err;
     serverBehind = true;
@@ -65,7 +69,7 @@ export async function homeView(session) {
     h('div', { class: 'pair only-mobile' }, mini('Encaissements ce mois-ci', 'in', money(bank.monthInCents)), mini('Décaissements ce mois-ci', 'out', money(bank.monthOutCents))),
     h('section', { class: 'card only-mobile' },
       h('h2', {}, 'À traiter'),
-      todo(bank)),
+      todo(bank, toVerify)),
     h('div', { class: 'stats only-desktop' },
       stat('Trésorerie', 'bank', balanceNote, balance),
       stat('Encaissements', 'in', 'Ce mois-ci', money(bank.monthInCents)),
@@ -77,7 +81,7 @@ export async function homeView(session) {
         h('div', { class: 'chart-empty' }, h('span', {}, 'La courbe arrivera avec l’historique de vos relevés.'))),
       h('section', { class: 'card' },
         h('h2', {}, 'À traiter'),
-        todo(bank)))
+        todo(bank, toVerify)))
   ];
 }
 
@@ -229,20 +233,140 @@ async function bankView(session) {
   ];
 }
 
-function invoicesView() {
+const DOC_TYPES = [['facture_recue', 'Facture reçue'], ['facture_emise', 'Facture émise'], ['recu', 'Reçu'], ['avoir', 'Avoir'], ['contrat', 'Contrat'], ['decompte', 'Décompte de billetterie'], ['note_de_frais', 'Justificatif de note de frais']];
+const docTypeLabel = (t) => (DOC_TYPES.find(([k]) => k === t) || [t, t])[1];
+const centsText = (v) => (v === '' || v === null || v === undefined ? '' : (v / 100).toFixed(2).replace('.', ','));
+
+function toBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(',')[1]);
+    reader.onerror = () => reject(new Error(`Lecture impossible : ${file.name}.`));
+    reader.readAsDataURL(file);
+  });
+}
+
+function docRow(d) {
+  return h('a', { class: 'op doc-link', href: `#/factures/${d.id}` },
+    h('div', { class: 'row-main' }, h('p', { class: 'row-title' }, d.supplier || d.fileName), h('p', { class: 'stat-note' }, `${docTypeLabel(d.type)}${d.date ? `, ${dayFr(d.date)}` : ''}`)),
+    h('div', { class: 'op-end' },
+      h('p', { class: 'row-title' }, d.grossCents === '' ? NONE : euro(d.grossCents)),
+      h('span', { class: `status ${d.validationStatus === 'valide' ? 'status-ok' : 'status-warn'}` }, d.validationStatus === 'valide' ? 'Validé' : 'À vérifier')));
+}
+
+async function invoicesView(session) {
+  const canWrite = session.permissions.includes('documents:write');
+  const data = await api('documents.list').catch((err) => {
+    if (err.code !== 'BAD_REQUEST') throw err;
+    return null;
+  });
+  if (!data) {
+    return [
+      title('Factures & documents', 'Centralisez vos factures, justificatifs et documents comptables.'),
+      h('div', { class: 'notice', role: 'status' }, h('p', {}, 'Le serveur Orbia doit être mis à jour pour activer les factures.'))
+    ];
+  }
+  const message = h('p', { role: 'status' });
+  const say = (text, ok) => { message.className = ok ? 'form-ok' : 'form-error'; message.textContent = text; };
+  const reload = () => window.dispatchEvent(new HashChangeEvent('hashchange'));
+
+  async function send(files) {
+    let added = 0;
+    const problems = [];
+    for (const [i, file] of [...files].entries()) {
+      say(`Envoi ${i + 1} sur ${files.length} : ${file.name}`, true);
+      try {
+        if (file.size > 10000000) throw new Error('fichier de plus de 10 Mo');
+        const r = await api('documents.upload', { fileName: file.name, mimeType: file.type, base64: await toBase64(file) });
+        if (r.duplicate) problems.push(`${file.name} : déjà dans Orbia`); else added++;
+      } catch (err) { problems.push(`${file.name} : ${err.message}`); }
+    }
+    if (problems.length) say(`${added} ajouté(s). ${problems.join('. ')}.`, false);
+    else { say(`${added} document(s) ajouté(s).`, true); setTimeout(reload, 700); }
+  }
+
+  const pick = (attrs) => h('input', { type: 'file', class: 'sr-only', 'aria-hidden': 'true', tabindex: '-1', onchange: (e) => { const f = [...e.target.files]; e.target.value = ''; if (f.length) send(f); }, ...attrs });
+  const camera = pick({ accept: 'image/*', capture: 'environment' });
+  const upload = pick({ accept: '.pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png', multiple: true });
+  const pending = data.items.filter((d) => d.validationStatus !== 'valide');
+  const done = data.items.filter((d) => d.validationStatus === 'valide');
+
   return [
-    title('Factures & documents', 'Centralisez vos factures, justificatifs et documents comptables.', soonButton('Ajouter un document', 'plus')),
-    h('div', { class: 'only-mobile' }, h('button', { class: 'btn btn-wide', disabled: true, title: SOON }, icon('camera'), 'Scanner une facture')),
+    title('Factures & documents', 'Centralisez vos factures, justificatifs et documents comptables.'),
+    !data.ready
+      ? h('div', { class: 'notice' }, h('p', {}, 'Créez d’abord l’espace Orbia dans Réglages, Stockage.'))
+      : canWrite && h('section', { class: 'drop', ondragover: (e) => e.preventDefault(), ondrop: (e) => { e.preventDefault(); send([...e.dataTransfer.files]); } },
+        h('div', { class: 'actions' },
+          h('button', { class: 'btn', onclick: () => camera.click() }, icon('camera'), 'Photographier'),
+          h('button', { class: 'btn btn-ghost', onclick: () => upload.click() }, icon('upload'), 'Télécharger')),
+        h('p', { class: 'only-desktop' }, 'Ou glissez vos fichiers ici. PDF, JPG ou PNG, 10 Mo maximum.'),
+        camera, upload, message),
     h('section', { class: 'card' },
-      tabs(['Tous', 'Factures', 'Justificatifs', 'À vérifier', 'Archivés']),
-      filters('Rechercher un document', ['Type', 'Période', 'Statut']),
-      h('div', { class: 'drop' },
-        h('span', { class: 'empty-icon' }, icon('camera')),
-        h('p', { class: 'drop-title' }, 'Scanner un justificatif'),
-        h('p', {}, 'Prenez une photo ou glissez votre fichier ici.'),
-        h('p', { class: 'soon' }, SOON)))
+      h('h2', {}, `À vérifier (${pending.length})`),
+      pending.length ? h('div', {}, pending.map(docRow)) : empty('docs', 'Rien à vérifier', 'Vos nouveaux documents apparaîtront ici.')),
+    done.length > 0 && h('section', { class: 'card' }, h('h2', {}, `Validés (${done.length})`), h('div', {}, done.map(docRow)))
   ];
 }
+
+async function invoiceDetailView(session, id) {
+  const { document: d, issues } = await api('documents.list', { id });
+  const locked = d.validationStatus === 'valide';
+  const canWrite = session.permissions.includes('documents:write') && !locked;
+  const canValidate = session.permissions.includes('documents:validate');
+  const message = h('p', { role: 'status' });
+  const say = (text, ok) => { message.className = ok ? 'form-ok' : 'form-error'; message.textContent = text; };
+  const reload = () => window.dispatchEvent(new HashChangeEvent('hashchange'));
+  const input = (name, label, value, attrs = {}) => field(label, h('input', { name, value, readOnly: !canWrite, autocomplete: 'off', ...attrs }));
+  const preview = h('div', { class: 'doc-preview' }, h('p', { class: 'muted' }, 'Chargement du document'));
+
+  api('documents.file', { id }).then((f) => {
+    const bytes = Uint8Array.from(atob(f.base64), (c) => c.charCodeAt(0));
+    const url = URL.createObjectURL(new Blob([bytes], { type: f.mimeType }));
+    preview.replaceChildren(f.mimeType.startsWith('image/')
+      ? h('img', { src: url, alt: `Aperçu de ${d.fileName}` })
+      : h('a', { class: 'btn btn-ghost', href: url, target: '_blank', rel: 'noopener' }, 'Ouvrir le PDF'));
+  }).catch((err) => preview.replaceChildren(h('p', { class: 'form-error' }, err.message)));
+
+  async function save(form) {
+    const v = Object.fromEntries(new FormData(form));
+    return api('documents.update', { id, ...v });
+  }
+  const run = (button, work, done) => async () => {
+    button.disabled = true;
+    say('', true);
+    try { await work(); say(done, true); setTimeout(reload, 600); } catch (err) { say(err.message, false); button.disabled = false; }
+  };
+
+  const form = h('form', { class: 'card form', novalidate: true, onsubmit: (e) => e.preventDefault() },
+    h('h2', {}, 'Informations'),
+    field('Type', h('select', { name: 'type', disabled: !canWrite }, DOC_TYPES.map(([k, l]) => h('option', { value: k, selected: k === d.type }, l)))),
+    h('div', { class: 'form-grid' },
+      input('supplier', 'Fournisseur ou client', d.supplier, { maxlength: 160 }),
+      input('date', 'Date', d.date, { type: 'date' }),
+      input('invoiceNumber', 'Numéro', d.invoiceNumber, { maxlength: 60 })),
+    h('div', { class: 'form-grid' },
+      input('net', 'Montant HT', centsText(d.netCents), { inputmode: 'decimal' }),
+      input('vat', 'TVA', centsText(d.vatCents), { inputmode: 'decimal' }),
+      input('gross', 'Montant TTC', centsText(d.grossCents), { inputmode: 'decimal' })),
+    issues.length > 0 && h('ul', { class: 'errors' }, issues.map((i) => h('li', {}, i))));
+  const saveBtn = h('button', { class: 'btn btn-ghost', type: 'button' }, 'Enregistrer');
+  saveBtn.addEventListener('click', run(saveBtn, () => save(form), 'Document enregistré.'));
+  const validateBtn = h('button', { class: 'btn', type: 'button' }, 'Valider le document');
+  validateBtn.addEventListener('click', run(validateBtn, async () => { await save(form); await api('documents.validate', { id }); }, 'Document validé.'));
+  const reason = h('input', { 'aria-label': 'Motif de la réouverture', placeholder: 'Motif de la réouverture', maxlength: 200 });
+  const reopenBtn = h('button', { class: 'btn btn-ghost', type: 'button' }, 'Rouvrir le document');
+  reopenBtn.addEventListener('click', run(reopenBtn, () => api('documents.reopen', { id, reason: reason.value }), 'Document rouvert.'));
+  form.append(h('div', { class: 'form-foot' },
+    canWrite && saveBtn, canWrite && canValidate && validateBtn,
+    locked && canValidate && reason, locked && canValidate && reopenBtn), message);
+
+  return [
+    title(d.supplier || d.fileName, docTypeLabel(d.type), h('a', { class: 'btn btn-ghost', href: '#/factures' }, 'Retour à la liste')),
+    h('div', { class: 'tva-grid' }, form, h('section', { class: 'card' }, h('h2', {}, 'Document'), preview))
+  ];
+}
+
+export const documentDetail = invoiceDetailView;
 
 function eventsView() {
   return [

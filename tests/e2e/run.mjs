@@ -246,6 +246,34 @@ const backend = createBackend();
   assert.deepEqual(problems, [], 'console pdf');
 }
 
+// Factures : ajout, saisie, contrôle, validation, verrouillage
+{
+  const b = createBackend();
+  b.call('admin@example.test', 'storage.init');
+  const { page, problems, context } = await session(b, 'admin@example.test', PHONE);
+  await page.getByRole('heading', { name: 'Bonjour !' }).waitFor();
+  await page.goto(origin + '#/factures');
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64');
+  await page.locator('input[type=file]').nth(1).setInputFiles({ name: 'facture.png', mimeType: 'image/png', buffer: png });
+  await page.getByText('1 document(s) ajouté(s).').waitFor();
+  await page.getByText('facture.png').first().click();
+  await page.getByLabel('Fournisseur ou client').fill('Atelier fictif');
+  await page.getByLabel('Date', { exact: true }).fill('2026-10-14');
+  await page.getByLabel('Numéro').fill('F-12');
+  await page.getByLabel('Montant HT').fill('100,00');
+  await page.getByLabel('TVA', { exact: true }).fill('20,00');
+  await page.getByLabel('Montant TTC').fill('121,00');
+  await page.getByRole('button', { name: 'Valider le document' }).click();
+  await page.getByText('HT + TVA').first().waitFor();
+  await page.getByLabel('Montant TTC').fill('120,00');
+  await page.getByRole('button', { name: 'Valider le document' }).click();
+  await page.getByRole('button', { name: 'Rouvrir le document' }).waitFor();
+  await noOverflow(page, 'document mobile');
+  await page.screenshot({ path: shots + 'document-mobile.png', fullPage: true });
+  await context.close();
+  assert.deepEqual(problems.filter((p) => !p.includes('favicon')), [], 'console factures');
+}
+
 // Toutes les pages : rendu sans erreur, sans chiffre inventé, sur PC et mobile
 {
   const pages = [['banque', 'Banque & rapprochement'], ['factures', 'Factures & documents'], ['projets', 'Événements'], ['tva', /TVA/], ['deplacements', 'Déplacements & notes de frais'], ['comptabilite', 'Comptabilité']];

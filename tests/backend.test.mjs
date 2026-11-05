@@ -503,3 +503,83 @@ test('A3 : une sauvegarde du schéma précédent reste restaurable', () => {
   b.drive.books.get(id).tabs.BankTransactions[0].pop();
   assert.equal(b.call(ADMIN, 'storage.restoreTest').data.restoreTest.ok, true);
 });
+
+const PNG = Buffer.from([0x89, 0x50, 0x4E, 0x47, 1, 2, 3]).toString('base64');
+const PDF = Buffer.from('%PDF-1.4 fictif').toString('base64');
+const up = (b, base64 = PNG, mimeType = 'image/png', who = ADMIN) => b.call(who, 'documents.upload', { fileName: 'f.png', mimeType, base64 });
+const fields = { type: 'facture_recue', supplier: 'Atelier', date: '2026-10-14', invoiceNumber: 'F1', net: '100,00', vat: '20,00', gross: '120,00' };
+
+test('A4 : l\'original est gardé dans Drive, privé, et le lien Drive ne sort pas', () => {
+  const b = ready();
+  const r = up(b);
+  assert.equal(r.data.duplicate, false);
+  assert.ok(!JSON.stringify(r).includes('driveFileId'));
+  const f = b.call(ADMIN, 'documents.file', { id: r.data.document.id }).data;
+  assert.equal(f.base64, PNG);
+  assert.equal(book(b).tabs.Documents[1][10], 'desactive');
+});
+
+test('A4 : même fichier deux fois, un seul document', () => {
+  const b = ready();
+  up(b);
+  assert.equal(up(b).data.duplicate, true);
+  assert.equal(book(b).tabs.Documents.length, 2);
+});
+
+test('A4 : type et contenu contrôlés', () => {
+  const b = ready();
+  assert.equal(code(up(b, PNG, 'text/html')), 'VALIDATION');
+  assert.equal(code(up(b, PDF, 'image/png')), 'VALIDATION');
+  assert.equal(code(up(b, '', 'image/png')), 'VALIDATION');
+  assert.equal(up(b, PDF, 'application/pdf').ok, true);
+});
+
+test('A4 : 120 € TTC avec 20 % donne 100 € HT et 20 € de TVA, sinon refus', () => {
+  const b = ready();
+  const id = up(b).data.document.id;
+  b.call(ADMIN, 'documents.update', { id, ...fields, gross: '121,00' });
+  assert.ok(code(b.call(ADMIN, 'documents.validate', { id })) === 'VALIDATION');
+  b.call(ADMIN, 'documents.update', { id, ...fields });
+  assert.equal(b.call(ADMIN, 'documents.validate', { id }).ok, true);
+  assert.equal(b.call(ADMIN, 'documents.list', { id }).data.document.grossCents, 12000);
+});
+
+test('A4 : doublon fournisseur, numéro et montant bloque la validation', () => {
+  const b = ready();
+  const a = up(b).data.document.id;
+  const c = up(b, PDF, 'application/pdf').data.document.id;
+  b.call(ADMIN, 'documents.update', { id: a, ...fields });
+  b.call(ADMIN, 'documents.update', { id: c, ...fields, supplier: 'ATELIER', invoiceNumber: 'f1' });
+  assert.ok(b.call(ADMIN, 'documents.validate', { id: c }).error.message.includes('Doublon'));
+});
+
+test('A4 : validé, le document est verrouillé, et chaque changement est tracé', () => {
+  const b = ready();
+  const id = up(b).data.document.id;
+  b.call(ADMIN, 'documents.update', { id, ...fields });
+  b.call(ADMIN, 'documents.validate', { id });
+  assert.equal(code(b.call(ADMIN, 'documents.update', { id, ...fields, gross: '1,00' })), 'VALIDATION');
+  assert.equal(code(b.call(ADMIN, 'documents.reopen', { id })), 'VALIDATION');
+  assert.equal(b.call(ADMIN, 'documents.reopen', { id, reason: 'Erreur de montant' }).ok, true);
+  const log = book(b).tabs.AuditLog.map((r) => r.join(' ')).join('\n');
+  assert.ok(log.includes('grossCents')); assert.ok(log.includes('Erreur de montant'));
+});
+
+test('A4 : droits par rôle', () => {
+  const b = ready();
+  b.call(ADMIN, 'users.save', { email: 'collab@example.test', role: 'collaborateur', active: true });
+  b.call(ADMIN, 'users.save', { email: 'lecteur@example.test', role: 'lecture', active: true });
+  const id = up(b, PNG, 'image/png', 'collab@example.test').data.document.id;
+  b.call('collab@example.test', 'documents.update', { id, ...fields });
+  assert.equal(code(b.call('collab@example.test', 'documents.validate', { id })), 'FORBIDDEN');
+  assert.equal(code(up(b, PDF, 'application/pdf', 'lecteur@example.test')), 'FORBIDDEN');
+  assert.equal(b.call('lecteur@example.test', 'documents.list').data.items.length, 1);
+});
+
+test('A4 : un texte hostile dans un document reste du texte', () => {
+  const b = ready();
+  const id = up(b).data.document.id;
+  b.call(ADMIN, 'documents.update', { id, ...fields, supplier: '=IMPORTXML("x")' });
+  assert.equal(book(b).tabs.Documents[1][4], '=IMPORTXML("x")');
+  assert.equal(code(b.call(ADMIN, 'documents.update', { id, ...fields, gross: 'abc' })), 'VALIDATION');
+});
