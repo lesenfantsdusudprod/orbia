@@ -1,0 +1,10 @@
+@font-face { font-family: "Instrument"; src: url("../fonts/instrument-sans-latin-wght-normal.woff2") format("woff2"); font-weight: 400 700; font-display: swap; }
+body { margin: 0; background: #FBF8F1; color: #2B2D2F; font: 400 1rem/1.6 "Instrument", system-ui, sans-serif; }
+main { max-width: 68ch; margin: 0 auto; padding: 40px 16px 64px; }
+.brand { font-weight: 750; font-size: 1.75rem; letter-spacing: -0.04em; margin: 0 0 24px; }
+.brand::after { content: ""; display: inline-block; width: 0.42em; height: 0.42em; margin-left: 0.14em; border-radius: 50%; background: #C8623F; }
+h1 { font-size: 1.75rem; line-height: 1.2; margin: 0 0 4px; }
+h2 { font-size: 1.125rem; margin: 32px 0 8px; }
+.muted { color: #5D5F60; margin: 0; }
+a { color: #A8492B; }
+li { margin-bottom: 6px; }
