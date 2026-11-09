@@ -11,6 +11,10 @@ function normalizeEmail_(email) {
  * remplir le stockage. Une demande ne donne aucun droit tant qu'un administrateur
  * ne l'a pas acceptée.
  */
+function ownerEmail_() {
+  try { return Session.getEffectiveUser().getEmail(); } catch (err) { return ''; }
+}
+
 const AccessRequests = {
   all() {
     return JSON.parse(PropertiesService.getScriptProperties().getProperty(PROP.ACCESS_REQUESTS) || '[]');
@@ -63,7 +67,8 @@ const UserRepository = {
   /** Crée le premier administrateur, une seule fois, si la liste est vide. */
   bootstrapIfEmpty() {
     if (this.all().length) return;
-    const admin = normalizeEmail_(PropertiesService.getScriptProperties().getProperty(PROP.BOOTSTRAP_ADMIN));
+    // Sans réglage, le premier administrateur est le propriétaire du serveur.
+    const admin = normalizeEmail_(PropertiesService.getScriptProperties().getProperty(PROP.BOOTSTRAP_ADMIN) || ownerEmail_());
     if (!admin) throw ERR.notConfigured();
     withLock_(() => {
       if (this.all().length) return;

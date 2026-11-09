@@ -53,7 +53,7 @@ test('Google indisponible : refus, jamais d\'accès par défaut', () => {
 
 test('configuration absente : le serveur refuse', () => {
   const b = createBackend({ props: { ORBIA_GOOGLE_CLIENT_ID: '' } });
-  assert.equal(code(b.call(ADMIN, 'session.get')), 'NOT_CONFIGURED');
+  assert.equal(code(b.call(ADMIN, 'session.get')), 'UNAUTHENTICATED', 'identifiant par défaut, qui ne correspond pas au jeton de test');
   const c = createBackend({ props: { ORBIA_BOOTSTRAP_ADMIN: '' } });
   assert.equal(code(c.call(ADMIN, 'session.get')), 'NOT_CONFIGURED');
 });
@@ -195,6 +195,7 @@ test('aucun secret ni donnée réelle dans le code livré au dépôt', () => {
   const bundle = readFileSync(new URL('../dist/Orbia_backend.gs', import.meta.url), 'utf8');
   assert.ok(!/gmail\.com|lesenfantsdusud|Enfants du Sud/i.test(bundle));
   assert.ok(!bundle.includes(CLIENT_ID));
+  assert.ok(!/GOCSPX-/.test(bundle), 'aucun code secret Google');
 });
 
 const ready = () => { const b = createBackend(); const r = b.call(ADMIN, 'storage.init'); assert.equal(r.ok, true, JSON.stringify(r)); return b; };
@@ -674,4 +675,11 @@ test('Sociétés : sans adresse enregistrée, celle du déploiement sert, /u/N/ 
   assert.equal(code(b.call(ADMIN, 'session.get')), 'NOT_CONFIGURED');
   b.state.serviceUrl = 'https://script.google.com/macros/u/3/s/AKfycbTESTserverIdentifier0123/exec';
   assert.equal(b.call(ADMIN, 'session.get').ok, true);
+});
+
+test('Copie du serveur : sans réglage, le propriétaire devient administrateur', () => {
+  const b = createBackend({ props: { ORBIA_BOOTSTRAP_ADMIN: '' } });
+  b.state.owner = 'Proprio@Example.test';
+  assert.equal(b.call('proprio@example.test', 'session.get').data.user.role, 'admin');
+  assert.equal(code(b.call('autre@example.test', 'session.get')), 'NOT_ALLOWED');
 });

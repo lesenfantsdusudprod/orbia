@@ -126,6 +126,7 @@ export function createBackend({ props = {} } = {}) {
     getActiveSpreadsheet: () => null
   };
   const builder = (handler) => { const chain = { timeBased: () => chain, everyDays: () => chain, everyHours: () => chain, onMonthDay: () => chain, atHour: () => chain, create() { drive.triggers.push(handler); } }; return chain; };
+  sandbox.Session = { getEffectiveUser: () => ({ getEmail: () => state.owner || '' }) };
   sandbox.ScriptApp = {
     getService: () => ({ getUrl: () => state.serviceUrl || '' }),
     getProjectTriggers: () => drive.triggers.map((h) => ({ getHandlerFunction: () => h })),

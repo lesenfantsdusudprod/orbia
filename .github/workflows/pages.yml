@@ -26,11 +26,12 @@ jobs:
         env:
           ORBIA_API_URL: ${{ vars.ORBIA_API_URL }}
           ORBIA_GOOGLE_CLIENT_ID: ${{ vars.ORBIA_GOOGLE_CLIENT_ID }}
+          ORBIA_TEMPLATE_URL: ${{ vars.ORBIA_TEMPLATE_URL }}
         run: |
           node -e "
-            const { ORBIA_API_URL: apiUrl, ORBIA_GOOGLE_CLIENT_ID: googleClientId } = process.env;
+            const { ORBIA_API_URL: apiUrl, ORBIA_GOOGLE_CLIENT_ID: googleClientId, ORBIA_TEMPLATE_URL: templateUrl = '' } = process.env;
             if (!apiUrl || !googleClientId) throw new Error('Variables ORBIA_API_URL et ORBIA_GOOGLE_CLIENT_ID requises');
-            require('fs').writeFileSync('frontend/config.js', 'window.ORBIA_CONFIG = Object.freeze(' + JSON.stringify({ apiUrl, googleClientId }) + ');\n');
+            require('fs').writeFileSync('frontend/config.js', 'window.ORBIA_CONFIG = Object.freeze(' + JSON.stringify({ apiUrl, googleClientId, templateUrl }) + ');\n');
           "
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

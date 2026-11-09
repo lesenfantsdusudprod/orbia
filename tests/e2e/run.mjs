@@ -284,7 +284,7 @@ const backend = createBackend();
   const link = await page.getByLabel('Lien d’invitation').inputValue();
   assert.ok(link.includes('?societe=' + encodeURIComponent(SERVER)));
   await page.goto(origin + 'creer-societe.html');
-  await page.locator('#client-id').filter({ hasText: 'x' }).waitFor();
+  await page.getByText('Le modèle n’est pas encore publié').waitFor();
   await page.fill('#server', 'https://evil.example/exec');
   await page.click('#open');
   await page.getByText('n’est pas celle d’un serveur Orbia').waitFor();

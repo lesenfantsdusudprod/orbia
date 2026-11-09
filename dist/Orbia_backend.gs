@@ -5,7 +5,13 @@
  * Aucun secret ni identifiant de ressource ici : tout passe par les propriétés de script.
  * Le dépôt peut être public.
  */
-const ORBIA_VERSION = '0.7.0';
+const ORBIA_VERSION = '0.7.1';
+
+/**
+ * Identifiant Google public d'Orbia (il figure aussi dans le site). Une copie du serveur
+ * fonctionne ainsi sans réglage ; la propriété ORBIA_GOOGLE_CLIENT_ID reste prioritaire.
+ */
+const DEFAULT_GOOGLE_CLIENT_ID = '35518738506-3opbbcd1r0m88pvqsbcb6tkra1iefb85.apps.googleusercontent.com';
 
 const PROP = Object.freeze({
   GOOGLE_CLIENT_ID: 'ORBIA_GOOGLE_CLIENT_ID',
@@ -197,6 +203,10 @@ function normalizeEmail_(email) {
  * remplir le stockage. Une demande ne donne aucun droit tant qu'un administrateur
  * ne l'a pas acceptée.
  */
+function ownerEmail_() {
+  try { return Session.getEffectiveUser().getEmail(); } catch (err) { return ''; }
+}
+
 const AccessRequests = {
   all() {
     return JSON.parse(PropertiesService.getScriptProperties().getProperty(PROP.ACCESS_REQUESTS) || '[]');
@@ -249,7 +259,8 @@ const UserRepository = {
   /** Crée le premier administrateur, une seule fois, si la liste est vide. */
   bootstrapIfEmpty() {
     if (this.all().length) return;
-    const admin = normalizeEmail_(PropertiesService.getScriptProperties().getProperty(PROP.BOOTSTRAP_ADMIN));
+    // Sans réglage, le premier administrateur est le propriétaire du serveur.
+    const admin = normalizeEmail_(PropertiesService.getScriptProperties().getProperty(PROP.BOOTSTRAP_ADMIN) || ownerEmail_());
     if (!admin) throw ERR.notConfigured();
     withLock_(() => {
       if (this.all().length) return;
@@ -1271,8 +1282,7 @@ function fetchClaims_(token) {
 
 /** Renvoie l'identité Google prouvée par le jeton, ou lève une erreur. */
 function authenticate_(token) {
-  const clientId = PropertiesService.getScriptProperties().getProperty(PROP.GOOGLE_CLIENT_ID);
-  if (!clientId) throw ERR.notConfigured();
+  const clientId = PropertiesService.getScriptProperties().getProperty(PROP.GOOGLE_CLIENT_ID) || DEFAULT_GOOGLE_CLIENT_ID;
   if (typeof token !== 'string' || token.length < 20 || token.length > 4096) throw ERR.unauthenticated();
 
   const cache = CacheService.getScriptCache();
@@ -1677,15 +1687,16 @@ function doGet() {
  */
 function orbiaCheckSetup() {
   const props = PropertiesService.getScriptProperties();
-  const missing = [PROP.GOOGLE_CLIENT_ID, PROP.BOOTSTRAP_ADMIN, PROP.PUBLIC_URL].filter((key) => !props.getProperty(key));
   UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo?id_token=test', { muteHttpExceptions: true });
-  // Vrai essai d'écriture : une simple lecture de Drive ne prouve pas le droit de créer.
+  // Vrais essais d'écriture : une simple lecture ne prouve pas le droit de créer.
   DriveApp.createFolder('Orbia - test d\u2019autorisation').setTrashed(true);
   ScriptApp.getProjectTriggers();
   DriveApp.getFileById(SpreadsheetApp.create('Orbia - test d\u2019autorisation').getId()).setTrashed(true);
-  if (missing.length) {
-    console.log('Propriétés manquantes : ' + missing.join(', '));
-  } else {
-    console.log('Configuration complète. Version ' + ORBIA_VERSION);
+  const admin = props.getProperty(PROP.BOOTSTRAP_ADMIN) || ownerEmail_();
+  if (!admin) {
+    console.log('Administrateur introuvable : ajoutez la propriété ' + PROP.BOOTSTRAP_ADMIN + '.');
+    return;
   }
+  console.log('Configuration complète. Version ' + ORBIA_VERSION + '. Premier administrateur : ' + admin + '.');
+  console.log('Étape suivante : Déployer > Nouveau déploiement > Application Web, Exécuter en tant que Moi, Accès Tout le monde.');
 }

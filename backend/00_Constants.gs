@@ -3,7 +3,13 @@
  * Aucun secret ni identifiant de ressource ici : tout passe par les propriétés de script.
  * Le dépôt peut être public.
  */
-const ORBIA_VERSION = '0.7.0';
+const ORBIA_VERSION = '0.7.1';
+
+/**
+ * Identifiant Google public d'Orbia (il figure aussi dans le site). Une copie du serveur
+ * fonctionne ainsi sans réglage ; la propriété ORBIA_GOOGLE_CLIENT_ID reste prioritaire.
+ */
+const DEFAULT_GOOGLE_CLIENT_ID = '35518738506-3opbbcd1r0m88pvqsbcb6tkra1iefb85.apps.googleusercontent.com';
 
 const PROP = Object.freeze({
   GOOGLE_CLIENT_ID: 'ORBIA_GOOGLE_CLIENT_ID',

@@ -58,8 +58,7 @@ function fetchClaims_(token) {
 
 /** Renvoie l'identité Google prouvée par le jeton, ou lève une erreur. */
 function authenticate_(token) {
-  const clientId = PropertiesService.getScriptProperties().getProperty(PROP.GOOGLE_CLIENT_ID);
-  if (!clientId) throw ERR.notConfigured();
+  const clientId = PropertiesService.getScriptProperties().getProperty(PROP.GOOGLE_CLIENT_ID) || DEFAULT_GOOGLE_CLIENT_ID;
   if (typeof token !== 'string' || token.length < 20 || token.length > 4096) throw ERR.unauthenticated();
 
   const cache = CacheService.getScriptCache();

@@ -4,15 +4,16 @@
  */
 function orbiaCheckSetup() {
   const props = PropertiesService.getScriptProperties();
-  const missing = [PROP.GOOGLE_CLIENT_ID, PROP.BOOTSTRAP_ADMIN, PROP.PUBLIC_URL].filter((key) => !props.getProperty(key));
   UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo?id_token=test', { muteHttpExceptions: true });
-  // Vrai essai d'écriture : une simple lecture de Drive ne prouve pas le droit de créer.
+  // Vrais essais d'écriture : une simple lecture ne prouve pas le droit de créer.
   DriveApp.createFolder('Orbia - test d\u2019autorisation').setTrashed(true);
   ScriptApp.getProjectTriggers();
   DriveApp.getFileById(SpreadsheetApp.create('Orbia - test d\u2019autorisation').getId()).setTrashed(true);
-  if (missing.length) {
-    console.log('Propriétés manquantes : ' + missing.join(', '));
-  } else {
-    console.log('Configuration complète. Version ' + ORBIA_VERSION);
+  const admin = props.getProperty(PROP.BOOTSTRAP_ADMIN) || ownerEmail_();
+  if (!admin) {
+    console.log('Administrateur introuvable : ajoutez la propriété ' + PROP.BOOTSTRAP_ADMIN + '.');
+    return;
   }
+  console.log('Configuration complète. Version ' + ORBIA_VERSION + '. Premier administrateur : ' + admin + '.');
+  console.log('Étape suivante : Déployer > Nouveau déploiement > Application Web, Exécuter en tant que Moi, Accès Tout le monde.');
 }

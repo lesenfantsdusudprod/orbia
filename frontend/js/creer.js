@@ -1,12 +1,15 @@
 import { add } from './companies.js';
 
-document.getElementById('client-id').textContent = window.ORBIA_CONFIG?.googleClientId || 'introuvable : rechargez la page';
+const template = window.ORBIA_CONFIG?.templateUrl;
+const link = document.getElementById('template');
+if (template && /^https:\/\/script\.google\.com\//.test(template)) link.href = template;
+else document.getElementById('template-slot').textContent = 'Le modèle n’est pas encore publié. Demandez le lien à l’administrateur d’Orbia.';
+
 document.getElementById('open').addEventListener('click', () => {
-  const message = document.getElementById('message');
   try {
     add(document.getElementById('server').value, 'Ma société');
     location.href = './#/';
   } catch (err) {
-    message.textContent = err.message;
+    document.getElementById('message').textContent = err.message;
   }
 });
