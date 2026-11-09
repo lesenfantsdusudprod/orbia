@@ -177,6 +177,36 @@ const ACTIONS = Object.freeze({
     }
   },
 
+  'users.requests': {
+    permission: 'users:manage',
+    run: () => ({ requests: AccessRequests.all() })
+  },
+
+  'users.approve': {
+    permission: 'users:manage',
+    run: (payload, ctx) => {
+      const data = asPlainObject_(payload);
+      const input = validateUser_({ email: data.email, role: data.role, active: true });
+      withLock_(() => {
+        AccessRequests.remove_(input.email);
+        UserRepository.upsert_(input, ctx.user.email);
+      });
+      mirrorSafely_();
+      LogRepository.append({ level: 'audit', code: 'ACCESS_APPROVED', action: ctx.action, actor: ctx.user.email, message: input.email + ' accepté, rôle ' + input.role + '.', correlationId: ctx.correlationId });
+      return { ok: true };
+    }
+  },
+
+  'users.reject': {
+    permission: 'users:manage',
+    run: (payload, ctx) => {
+      const email = normalizeEmail_(cleanString_(asPlainObject_(payload).email, 'E-mail', 254));
+      withLock_(() => AccessRequests.remove_(email));
+      LogRepository.append({ level: 'audit', code: 'ACCESS_REJECTED', action: ctx.action, actor: ctx.user.email, message: 'Demande refusée : ' + email + '.', correlationId: ctx.correlationId });
+      return { ok: true };
+    }
+  },
+
   'logs.list': {
     permission: 'logs:read',
     run: () => ({ entries: LogRepository.list() })

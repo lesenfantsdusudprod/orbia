@@ -115,9 +115,20 @@ function handleAccessLost(err) {
     return;
   }
   session = null;
-  signOut();
-  gate('Accès refusé', err.message, h('p', {}, 'Demandez à un administrateur d’autoriser votre compte.'),
-    h('button', { class: 'btn btn-ghost', onclick: () => showSignIn() }, 'Utiliser un autre compte'));
+  const note = h('p', { role: 'status' }, 'Ce compte Google n’a pas encore accès à Orbia.');
+  const ask = h('button', { class: 'btn', onclick: async () => {
+    ask.disabled = true;
+    try {
+      const r = await api('access.request');
+      if (r.status === 'authorized') { loadSession(); return; }
+      note.textContent = r.status === 'disabled'
+        ? 'Ce compte a été désactivé. Contactez un administrateur.'
+        : 'Demande envoyée. Un administrateur doit l’accepter, puis rechargez cette page.';
+      ask.remove();
+    } catch (e) { note.textContent = e.message; ask.disabled = false; }
+  } }, 'Demander l’accès');
+  const other = h('button', { class: 'btn btn-ghost', onclick: () => { signOut(); showSignIn(); } }, 'Utiliser un autre compte');
+  gate('Accès refusé', null, note, h('div', { class: 'form-foot' }, ask, other));
 }
 
 async function loadSession() {

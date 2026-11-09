@@ -5,7 +5,7 @@
  * Aucun secret ni identifiant de ressource ici : tout passe par les propriétés de script.
  * Le dépôt peut être public.
  */
-const ORBIA_VERSION = '0.5.0-a4';
+const ORBIA_VERSION = '0.6.0-a4';
 
 const PROP = Object.freeze({
   GOOGLE_CLIENT_ID: 'ORBIA_GOOGLE_CLIENT_ID',
@@ -21,6 +21,7 @@ const PROP = Object.freeze({
   LAST_BACKUP: 'ORBIA_LAST_BACKUP',
   LAST_RESTORE_TEST: 'ORBIA_LAST_RESTORE_TEST',
   BANK_MAPPINGS: 'ORBIA_BANK_MAPPINGS',
+  ACCESS_REQUESTS: 'ORBIA_ACCESS_REQUESTS',
   ANTHROPIC_KEY: 'ORBIA_ANTHROPIC_API_KEY',
   ANTHROPIC_MODEL: 'ORBIA_ANTHROPIC_MODEL'
 });
@@ -40,6 +41,7 @@ const LIMITS = Object.freeze({
   LOCK_WAIT_MS: 5000,
   STORAGE_LOCK_WAIT_MS: 20000,
   BACKUPS_LISTED: 30,
+  MAX_ACCESS_REQUESTS: 50,
   DENIED_LOG_WINDOW_SECONDS: 3600
 });
 
@@ -188,6 +190,45 @@ const LogRepository = {
 function normalizeEmail_(email) {
   return String(email || '').trim().toLowerCase();
 }
+
+/**
+ * Demandes d'accès : une par compte, plafonnées pour qu'un inconnu ne puisse pas
+ * remplir le stockage. Une demande ne donne aucun droit tant qu'un administrateur
+ * ne l'a pas acceptée.
+ */
+const AccessRequests = {
+  all() {
+    return JSON.parse(PropertiesService.getScriptProperties().getProperty(PROP.ACCESS_REQUESTS) || '[]');
+  },
+
+  save_(list) {
+    PropertiesService.getScriptProperties().setProperty(PROP.ACCESS_REQUESTS, JSON.stringify(list));
+  },
+
+  submit_(identity, correlationId) {
+    UserRepository.bootstrapIfEmpty();
+    const user = UserRepository.find(identity.email);
+    if (user && user.active === true) return { status: 'authorized' };
+    if (user) return { status: 'disabled' };
+    return withLock_(() => {
+      const list = this.all();
+      if (list.some((r) => r.email === identity.email)) return { status: 'pending' };
+      if (list.length >= LIMITS.MAX_ACCESS_REQUESTS) throw new OrbiaError('REQUESTS_FULL', 'Trop de demandes en attente. Contactez directement un administrateur.');
+      list.push({ email: identity.email, name: sanitizeLogText_(identity.name).slice(0, 80), at: new Date().toISOString() });
+      this.save_(list);
+      LogRepository.append({ level: 'audit', code: 'ACCESS_REQUESTED', actor: identity.email, message: 'Demande d\u2019accès reçue.', correlationId });
+      return { status: 'pending' };
+    });
+  },
+
+  /** À appeler dans withLock_. */
+  remove_(email) {
+    const list = this.all();
+    const next = list.filter((r) => r.email !== email);
+    if (next.length === list.length) throw ERR.validation('Cette demande n\u2019existe plus.');
+    this.save_(next);
+  }
+};
 
 const UserRepository = {
   all() {
@@ -1504,6 +1545,36 @@ const ACTIONS = Object.freeze({
     }
   },
 
+  'users.requests': {
+    permission: 'users:manage',
+    run: () => ({ requests: AccessRequests.all() })
+  },
+
+  'users.approve': {
+    permission: 'users:manage',
+    run: (payload, ctx) => {
+      const data = asPlainObject_(payload);
+      const input = validateUser_({ email: data.email, role: data.role, active: true });
+      withLock_(() => {
+        AccessRequests.remove_(input.email);
+        UserRepository.upsert_(input, ctx.user.email);
+      });
+      mirrorSafely_();
+      LogRepository.append({ level: 'audit', code: 'ACCESS_APPROVED', action: ctx.action, actor: ctx.user.email, message: input.email + ' accepté, rôle ' + input.role + '.', correlationId: ctx.correlationId });
+      return { ok: true };
+    }
+  },
+
+  'users.reject': {
+    permission: 'users:manage',
+    run: (payload, ctx) => {
+      const email = normalizeEmail_(cleanString_(asPlainObject_(payload).email, 'E-mail', 254));
+      withLock_(() => AccessRequests.remove_(email));
+      LogRepository.append({ level: 'audit', code: 'ACCESS_REJECTED', action: ctx.action, actor: ctx.user.email, message: 'Demande refusée : ' + email + '.', correlationId: ctx.correlationId });
+      return { ok: true };
+    }
+  },
+
   'logs.list': {
     permission: 'logs:read',
     run: () => ({ entries: LogRepository.list() })
@@ -1548,6 +1619,8 @@ function dispatch_(e, correlationId) {
   const body = parseRequest_(e);
   // L'identité passe avant l'action : un inconnu ne peut pas sonder la liste des actions.
   const identity = authenticate_(body.idToken);
+  // Seule action ouverte à un compte Google prouvé mais non autorisé : demander l'accès.
+  if (body.action === 'access.request') return AccessRequests.submit_(identity, correlationId);
   const user = resolveUser_(identity, correlationId);
 
   const name = body.action;

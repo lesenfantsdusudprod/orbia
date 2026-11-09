@@ -35,7 +35,7 @@ export async function api(action, payload) {
   }
   if (!body.ok) {
     const error = new ApiError(body.error.code, body.error.message, body.error.correlationId);
-    if (error.code === 'UNAUTHENTICATED' || error.code === 'NOT_ALLOWED') onAccessLost(error);
+    if (action !== 'access.request' && (error.code === 'UNAUTHENTICATED' || error.code === 'NOT_ALLOWED')) onAccessLost(error);
     throw error;
   }
   return body.data;

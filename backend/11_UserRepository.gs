@@ -6,6 +6,45 @@ function normalizeEmail_(email) {
   return String(email || '').trim().toLowerCase();
 }
 
+/**
+ * Demandes d'accès : une par compte, plafonnées pour qu'un inconnu ne puisse pas
+ * remplir le stockage. Une demande ne donne aucun droit tant qu'un administrateur
+ * ne l'a pas acceptée.
+ */
+const AccessRequests = {
+  all() {
+    return JSON.parse(PropertiesService.getScriptProperties().getProperty(PROP.ACCESS_REQUESTS) || '[]');
+  },
+
+  save_(list) {
+    PropertiesService.getScriptProperties().setProperty(PROP.ACCESS_REQUESTS, JSON.stringify(list));
+  },
+
+  submit_(identity, correlationId) {
+    UserRepository.bootstrapIfEmpty();
+    const user = UserRepository.find(identity.email);
+    if (user && user.active === true) return { status: 'authorized' };
+    if (user) return { status: 'disabled' };
+    return withLock_(() => {
+      const list = this.all();
+      if (list.some((r) => r.email === identity.email)) return { status: 'pending' };
+      if (list.length >= LIMITS.MAX_ACCESS_REQUESTS) throw new OrbiaError('REQUESTS_FULL', 'Trop de demandes en attente. Contactez directement un administrateur.');
+      list.push({ email: identity.email, name: sanitizeLogText_(identity.name).slice(0, 80), at: new Date().toISOString() });
+      this.save_(list);
+      LogRepository.append({ level: 'audit', code: 'ACCESS_REQUESTED', actor: identity.email, message: 'Demande d\u2019accès reçue.', correlationId });
+      return { status: 'pending' };
+    });
+  },
+
+  /** À appeler dans withLock_. */
+  remove_(email) {
+    const list = this.all();
+    const next = list.filter((r) => r.email !== email);
+    if (next.length === list.length) throw ERR.validation('Cette demande n\u2019existe plus.');
+    this.save_(next);
+  }
+};
+
 const UserRepository = {
   all() {
     const raw = PropertiesService.getScriptProperties().getProperty(PROP.USERS);

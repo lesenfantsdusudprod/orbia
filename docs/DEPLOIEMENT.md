@@ -115,3 +115,7 @@ Le PDF est lu dans le navigateur et converti, puis suit le contrôle habituel. C
 ## Lecture des factures par IA
 
 Propriété de script requise : `ORBIA_ANTHROPIC_API_KEY`. `ORBIA_ANTHROPIC_MODEL` est facultative. Un document n'est envoyé qu'après un clic sur **Lire avec l'IA**, et les valeurs proposées ne sont enregistrées qu'après relecture.
+
+## Demandes d'accès
+
+Publiez l'application dans **Google Auth Platform > Audience** pour que tout compte Google passe l'écran de connexion. Orbia refuse ensuite toute personne absente de la liste, qui peut seulement envoyer une demande. Les demandes s'acceptent dans **Réglages > Utilisateurs**.

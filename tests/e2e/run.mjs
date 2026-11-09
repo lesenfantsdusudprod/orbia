@@ -294,10 +294,22 @@ const backend = createBackend();
   }
 }
 
-// Compte non autorisé
+// Compte non autorisé : demande d'accès, puis acceptation par l'administrateur
 {
   const { page, context } = await session(backend, 'inconnu@example.test', PHONE);
   await page.getByRole('heading', { name: 'Accès refusé' }).waitFor();
+  await page.getByRole('button', { name: 'Demander l’accès' }).click();
+  await page.getByText('Demande envoyée.').waitFor();
+  const admin = await session(backend, 'admin@example.test', DESK);
+  await admin.page.getByRole('heading', { name: 'Bonjour !' }).waitFor();
+  await admin.page.goto(origin + '#/reglages/utilisateurs');
+  await admin.page.getByText('Demandes d’accès (1)').waitFor();
+  await admin.page.screenshot({ path: shots + 'demandes-pc.png', fullPage: true });
+  await admin.page.getByRole('button', { name: 'Accepter' }).click();
+  await admin.page.getByText('Demandes d’accès').waitFor({ state: 'detached' });
+  await admin.context.close();
+  await page.reload();
+  await page.getByRole('heading', { name: 'Bonjour !' }).waitFor();
   await page.screenshot({ path: shots + 'refus-mobile.png' });
   await context.close();
 }

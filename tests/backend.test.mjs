@@ -632,3 +632,31 @@ test('A4 : aucune clé dans le code livré', () => {
   const bundle = readFileSync(new URL('../dist/Orbia_backend.gs', import.meta.url), 'utf8');
   assert.ok(!/sk-ant-/.test(bundle));
 });
+
+test('Demandes d\'accès : un inconnu demande, rien n\'est accordé avant acceptation', () => {
+  const b = createBackend();
+  b.call(ADMIN, 'session.get');
+  assert.equal(b.call('nouveau@example.test', 'access.request').data.status, 'pending');
+  assert.equal(b.call('nouveau@example.test', 'access.request').data.status, 'pending');
+  assert.equal(code(b.call('nouveau@example.test', 'session.get')), 'NOT_ALLOWED');
+  assert.equal(code(b.call('nouveau@example.test', 'users.requests')), 'NOT_ALLOWED');
+  assert.equal(code(b.post({ action: 'access.request' })), 'UNAUTHENTICATED');
+  assert.equal(b.call(ADMIN, 'users.requests').data.requests.length, 1);
+  assert.equal(b.call(ADMIN, 'users.approve', { email: 'nouveau@example.test', role: 'lecture' }).ok, true);
+  assert.equal(b.call('nouveau@example.test', 'session.get').data.user.role, 'lecture');
+  assert.equal(b.call(ADMIN, 'users.requests').data.requests.length, 0);
+  assert.equal(b.call('nouveau@example.test', 'access.request').data.status, 'authorized');
+});
+
+test('Demandes d\'accès : refus, compte désactivé, plafond, droits', () => {
+  const b = createBackend();
+  b.call(ADMIN, 'users.save', { email: 'collab@example.test', role: 'collaborateur', active: true });
+  b.call('x@example.test', 'access.request');
+  assert.equal(code(b.call('collab@example.test', 'users.approve', { email: 'x@example.test', role: 'admin' })), 'FORBIDDEN');
+  assert.equal(b.call(ADMIN, 'users.reject', { email: 'x@example.test' }).ok, true);
+  assert.equal(code(b.call(ADMIN, 'users.approve', { email: 'x@example.test', role: 'admin' })), 'VALIDATION');
+  b.call(ADMIN, 'users.save', { email: 'collab@example.test', role: 'collaborateur', active: false });
+  assert.equal(b.call('collab@example.test', 'access.request').data.status, 'disabled');
+  for (let i = 0; i < 50; i++) b.call(`p${i}@example.test`, 'access.request');
+  assert.equal(code(b.call('trop@example.test', 'access.request')), 'REQUESTS_FULL');
+});

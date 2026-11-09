@@ -162,10 +162,22 @@ export async function usersView(session) {
   const message = h('p', { class: 'form-error', role: 'alert' });
   const report = (text) => { message.textContent = text; };
 
+  const pending = h('div', {});
   async function reload() {
     report('');
-    const { users } = await api('users.list');
+    const [{ users }, { requests }] = await Promise.all([api('users.list'), api('users.requests').catch(() => ({ requests: [] }))]);
     list.replaceChildren(...users.map((u) => userRow(session, u, reload, report)));
+    pending.replaceChildren(...(requests.length ? [h('section', { class: 'card' },
+      h('h2', {}, `Demandes d’accès (${requests.length})`),
+      h('div', {}, requests.map((r) => {
+        const role = h('select', { 'aria-label': `Rôle pour ${r.email}` }, options(Object.entries(ROLE_LABELS), 'collaborateur'));
+        const act = (action, payload) => async () => { try { await api(action, payload()); await reload(); } catch (err) { report(err.message); } };
+        return h('div', { class: 'row' },
+          h('div', { class: 'row-main' }, h('p', { class: 'row-title' }, r.email), h('p', { class: 'muted' }, `${r.name ? `${r.name}, ` : ''}${dateTime(r.at)}`)),
+          h('div', { class: 'row-controls' }, role,
+            h('button', { class: 'btn', onclick: act('users.approve', () => ({ email: r.email, role: role.value })) }, 'Accepter'),
+            h('button', { class: 'btn btn-ghost', onclick: act('users.reject', () => ({ email: r.email })) }, 'Refuser')));
+      })))] : []));
   }
 
   async function add(event) {
@@ -185,6 +197,7 @@ export async function usersView(session) {
   return [
     head('Réglages'),
     settingsTabs(session, '#/reglages/utilisateurs'),
+    pending,
     h('section', { class: 'card' }, h('h2', {}, 'Utilisateurs autorisés'), list),
     h('form', { class: 'card form', onsubmit: add, novalidate: true },
       h('h2', {}, 'Autoriser un compte Google'),

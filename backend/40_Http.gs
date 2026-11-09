@@ -26,6 +26,8 @@ function dispatch_(e, correlationId) {
   const body = parseRequest_(e);
   // L'identité passe avant l'action : un inconnu ne peut pas sonder la liste des actions.
   const identity = authenticate_(body.idToken);
+  // Seule action ouverte à un compte Google prouvé mais non autorisé : demander l'accès.
+  if (body.action === 'access.request') return AccessRequests.submit_(identity, correlationId);
   const user = resolveUser_(identity, correlationId);
 
   const name = body.action;

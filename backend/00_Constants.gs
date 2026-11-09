@@ -3,7 +3,7 @@
  * Aucun secret ni identifiant de ressource ici : tout passe par les propriétés de script.
  * Le dépôt peut être public.
  */
-const ORBIA_VERSION = '0.5.0-a4';
+const ORBIA_VERSION = '0.6.0-a4';
 
 const PROP = Object.freeze({
   GOOGLE_CLIENT_ID: 'ORBIA_GOOGLE_CLIENT_ID',
@@ -19,6 +19,7 @@ const PROP = Object.freeze({
   LAST_BACKUP: 'ORBIA_LAST_BACKUP',
   LAST_RESTORE_TEST: 'ORBIA_LAST_RESTORE_TEST',
   BANK_MAPPINGS: 'ORBIA_BANK_MAPPINGS',
+  ACCESS_REQUESTS: 'ORBIA_ACCESS_REQUESTS',
   ANTHROPIC_KEY: 'ORBIA_ANTHROPIC_API_KEY',
   ANTHROPIC_MODEL: 'ORBIA_ANTHROPIC_MODEL'
 });
@@ -38,6 +39,7 @@ const LIMITS = Object.freeze({
   LOCK_WAIT_MS: 5000,
   STORAGE_LOCK_WAIT_MS: 20000,
   BACKUPS_LISTED: 30,
+  MAX_ACCESS_REQUESTS: 50,
   DENIED_LOG_WINDOW_SECONDS: 3600
 });
 
