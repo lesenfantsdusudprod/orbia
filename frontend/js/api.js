@@ -1,3 +1,4 @@
+import { active } from './companies.js';
 /** Client de l'API. Le jeton reste en mémoire, jamais dans le stockage du navigateur. */
 export class ApiError extends Error {
   constructor(code, message, correlationId) {
@@ -13,7 +14,7 @@ export const setTokenProvider = (fn) => { getToken = fn; };
 export const setAccessLostHandler = (fn) => { onAccessLost = fn; };
 
 export async function api(action, payload) {
-  const { apiUrl } = window.ORBIA_CONFIG;
+  const apiUrl = active()?.url;
   let response;
   try {
     // text/plain évite la requête préalable CORS, qu'Apps Script ne sait pas traiter.

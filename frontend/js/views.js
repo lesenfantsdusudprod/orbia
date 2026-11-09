@@ -1,3 +1,4 @@
+import { active, inviteLink } from './companies.js';
 import { h, field } from './dom.js';
 import { api } from './api.js';
 
@@ -157,6 +158,18 @@ function userRow(session, user, reload, report) {
       h('button', { class: 'btn btn-ghost', onclick: () => save(!user.active) }, user.active ? 'Désactiver' : 'Réactiver')));
 }
 
+function inviteCard() {
+  const link = inviteLink(active().url);
+  const note = h('p', { role: 'status', class: 'muted' }, 'Envoyez ce lien aux personnes autorisées : il les amène sur cette société.');
+  return h('section', { class: 'card' },
+    h('h2', {}, 'Lien d’invitation'),
+    h('input', { value: link, readOnly: true, 'aria-label': 'Lien d’invitation', class: 'filter', onfocus: (e) => e.target.select() }),
+    h('div', { class: 'form-foot' }, h('button', { class: 'btn btn-ghost', onclick: async () => {
+      try { await navigator.clipboard.writeText(link); note.textContent = 'Lien copié.'; } catch (err) { note.textContent = 'Copiez le lien à la main.'; }
+    } }, 'Copier le lien')),
+    note);
+}
+
 export async function usersView(session) {
   const list = h('div', { 'aria-live': 'polite' });
   const message = h('p', { class: 'form-error', role: 'alert' });
@@ -199,6 +212,7 @@ export async function usersView(session) {
     settingsTabs(session, '#/reglages/utilisateurs'),
     pending,
     h('section', { class: 'card' }, h('h2', {}, 'Utilisateurs autorisés'), list),
+    inviteCard(),
     h('form', { class: 'card form', onsubmit: add, novalidate: true },
       h('h2', {}, 'Autoriser un compte Google'),
       h('div', { class: 'form-grid' },

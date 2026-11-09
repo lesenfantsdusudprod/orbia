@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { createBackend, claimsFor, CLIENT_ID } from './harness.mjs';
+import { createBackend, claimsFor, CLIENT_ID, SERVER, nonceFor } from './harness.mjs';
 
 const ADMIN = 'admin@example.test';
 const company = { legalName: 'Société Test', legalForm: 'SAS', siren: '123456789', siret: '12345678900011', fiscalYearStart: '2026-01-01', fiscalYearEnd: '2026-12-31', currency: 'EUR', vatRegime: 'a_confirmer', vatPeriodicity: 'a_confirmer', projectsEnabled: true };
@@ -659,4 +659,19 @@ test('Demandes d\'accès : refus, compte désactivé, plafond, droits', () => {
   assert.equal(b.call('collab@example.test', 'access.request').data.status, 'disabled');
   for (let i = 0; i < 50; i++) b.call(`p${i}@example.test`, 'access.request');
   assert.equal(code(b.call('trop@example.test', 'access.request')), 'REQUESTS_FULL');
+});
+
+test('Sociétés : un jeton destiné à un autre serveur Orbia est refusé', () => {
+  const b = createBackend();
+  const other = 'https://script.google.com/macros/s/AUTRE/exec';
+  assert.equal(code(b.post({ idToken: b.issue(claimsFor(ADMIN, { nonce: nonceFor(other) })), action: 'session.get' })), 'UNAUTHENTICATED');
+  assert.equal(code(b.post({ idToken: b.issue(claimsFor(ADMIN, { nonce: undefined })), action: 'session.get' })), 'UNAUTHENTICATED');
+  assert.equal(b.call(ADMIN, 'session.get').ok, true);
+});
+
+test('Sociétés : sans adresse enregistrée, celle du déploiement sert, /u/N/ compris', () => {
+  const b = createBackend({ props: { ORBIA_PUBLIC_URL: '' } });
+  assert.equal(code(b.call(ADMIN, 'session.get')), 'NOT_CONFIGURED');
+  b.state.serviceUrl = 'https://script.google.com/macros/u/3/s/AKfycbTESTserverIdentifier0123/exec';
+  assert.equal(b.call(ADMIN, 'session.get').ok, true);
 });

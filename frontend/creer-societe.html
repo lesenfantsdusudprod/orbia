@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <title>Créer ma société, orbia.</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/legal.css">
+</head>
+<body>
+<main>
+  <p class="brand">orbia</p>
+  <h1>Créer ma société</h1>
+  <p class="muted">Environ 20 minutes, sur ordinateur. Vos données resteront dans votre propre compte Google : ni Orbia ni les autres sociétés n’y ont accès.</p>
+
+  <h2>1. Créer le serveur</h2>
+  <ol>
+    <li>Ouvrez <a href="https://script.google.com" target="_blank" rel="noopener">script.google.com</a> dans une fenêtre privée, connecté au compte Google de votre société.</li>
+    <li>Cliquez sur <strong>Nouveau projet</strong> et nommez-le <code>Orbia</code>.</li>
+    <li>Ouvrez <a href="https://raw.githubusercontent.com/lesenfantsdusudprod/orbia/main/dist/Orbia_backend.gs" target="_blank" rel="noopener">le code du serveur</a>, copiez tout, puis collez-le à la place du contenu de <code>Code.gs</code>. Enregistrez.</li>
+    <li>Dans <strong>Paramètres du projet</strong>, cochez <strong>Afficher le fichier manifeste "appsscript.json"</strong>. Revenez au code, ouvrez <code>appsscript.json</code> et remplacez son contenu par ceci :</li>
+  </ol>
+  <pre id="manifest">{
+  "timeZone": "Europe/Paris",
+  "runtimeVersion": "V8",
+  "exceptionLogging": "STACKDRIVER",
+  "oauthScopes": [
+    "https://www.googleapis.com/auth/script.external_request",
+    "https://www.googleapis.com/auth/drive",
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/script.scriptapp"
+  ],
+  "webapp": { "executeAs": "USER_DEPLOYING", "access": "ANYONE_ANONYMOUS" }
+}</pre>
+
+  <h2>2. Le relier à Orbia</h2>
+  <p>Dans <strong>Paramètres du projet &gt; Propriétés de script</strong>, ajoutez :</p>
+  <table>
+    <tr><th>Propriété</th><th>Valeur</th></tr>
+    <tr><td><code>ORBIA_GOOGLE_CLIENT_ID</code></td><td><code id="client-id">chargement…</code></td></tr>
+    <tr><td><code>ORBIA_BOOTSTRAP_ADMIN</code></td><td>votre adresse Gmail : vous serez le premier administrateur</td></tr>
+  </table>
+
+  <h2>3. Autoriser et publier</h2>
+  <ol>
+    <li>Dans le code, choisissez <code>orbiaCheckSetup</code> en haut, cliquez sur <strong>Exécuter</strong> et acceptez les autorisations. Google affiche un avertissement : c’est votre propre script, cliquez sur <strong>Paramètres avancés</strong>, puis <strong>Accéder à Orbia</strong>.</li>
+    <li>Cliquez sur <strong>Déployer &gt; Nouveau déploiement</strong>, choisissez <strong>Application Web</strong>, <strong>Exécuter en tant que : Moi</strong> et <strong>Qui a accès : Tout le monde</strong>, puis <strong>Déployer</strong>.</li>
+    <li>Copiez l’adresse qui finit par <code>/exec</code>.</li>
+    <li>Ajoutez une dernière propriété de script : <code>ORBIA_PUBLIC_URL</code>, avec cette adresse pour valeur.</li>
+  </ol>
+  <p class="muted">Pour les mises à jour, utilisez toujours le crayon dans <strong>Gérer les déploiements</strong>, jamais un nouveau déploiement : l’adresse changerait.</p>
+
+  <h2>4. Ouvrir votre société</h2>
+  <label for="server">Adresse du serveur</label>
+  <input id="server" type="url" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off">
+  <p id="message" role="status" class="muted"></p>
+  <button id="open" type="button">Ouvrir ma société</button>
+
+  <p><a href="./">Retour à Orbia</a></p>
+</main>
+<script src="config.js"></script>
+<script type="module" src="js/creer.js"></script>
+</body>
+</html>

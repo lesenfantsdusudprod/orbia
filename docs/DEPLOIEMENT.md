@@ -119,3 +119,12 @@ Propriété de script requise : `ORBIA_ANTHROPIC_API_KEY`. `ORBIA_ANTHROPIC_MODE
 ## Demandes d'accès
 
 Publiez l'application dans **Google Auth Platform > Audience** pour que tout compte Google passe l'écran de connexion. Orbia refuse ensuite toute personne absente de la liste, qui peut seulement envoyer une demande. Les demandes s'acceptent dans **Réglages > Utilisateurs**.
+
+## Plusieurs sociétés (0.7.0)
+
+Chaque société a son propre serveur Apps Script, dans le compte Google de son propriétaire, ses données dans son propre Drive. Le site garde la liste des sociétés de chaque navigateur et ne parle qu'à des adresses `script.google.com/macros/s/…/exec`.
+
+- Propriété de script à ajouter sur chaque serveur : `ORBIA_PUBLIC_URL`, l'adresse `/exec` du déploiement. Le jeton Google porte l'empreinte de cette adresse, ce qui empêche le serveur d'une société de réutiliser le jeton d'un visiteur sur une autre.
+- Lien d'invitation : **Réglages > Utilisateurs**.
+- Création guidée : `creer-societe.html`.
+- Chaque mise à jour du code se fait sur chaque serveur.

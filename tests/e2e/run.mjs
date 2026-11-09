@@ -6,11 +6,11 @@ import { readFile, mkdir } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
-import { createBackend, claimsFor } from '../harness.mjs';
+import { createBackend, claimsFor, SERVER, nonceFor } from '../harness.mjs';
 
 const require = createRequire('/opt/npm-tools/');
 const { chromium } = require('playwright');
-const API = 'https://script.google.com/macros/s/TEST/exec';
+const API = SERVER;
 const root = fileURLToPath(new URL('../../frontend/', import.meta.url));
 const shots = fileURLToPath(new URL('./shots/', import.meta.url));
 await mkdir(shots, { recursive: true });
@@ -24,7 +24,7 @@ const origin = `http://localhost:${server.address().port}/`;
 const browser = await chromium.launch();
 
 const GSI = `window.google={accounts:{id:{initialize(o){window.__cb=o.callback},renderButton(el){const b=document.createElement('button');b.textContent='Continuer avec Google';b.id='fake-google';b.onclick=()=>window.__login();el.append(b)},prompt(){},disableAutoSelect(){}}}};`;
-const jwtFor = (exp, email) => 'h.' + Buffer.from(JSON.stringify({ exp, email })).toString('base64url') + '.s';
+const jwtFor = (exp, email) => 'h.' + Buffer.from(JSON.stringify({ exp, email, nonce: nonceFor(SERVER) })).toString('base64url') + '.s';
 
 async function session(backend, email, viewport) {
   const context = await browser.newContext({ viewport, locale: 'fr-FR' });
@@ -272,6 +272,31 @@ const backend = createBackend();
   await page.screenshot({ path: shots + 'document-mobile.png', fullPage: true });
   await context.close();
   assert.deepEqual(problems.filter((p) => !p.includes('favicon')), [], 'console factures');
+}
+
+// Plusieurs sociétés : lien d'invitation, changement, création guidée, adresse refusée
+{
+  const b1 = createBackend();
+  const other = 'https://script.google.com/macros/s/AKfycbAUTREsocieteIdentifier99/exec';
+  const { page, problems, context } = await session(b1, 'admin@example.test', DESK);
+  await page.getByRole('heading', { name: 'Bonjour !' }).waitFor();
+  await page.goto(origin + '#/reglages/utilisateurs');
+  const link = await page.getByLabel('Lien d’invitation').inputValue();
+  assert.ok(link.includes('?societe=' + encodeURIComponent(SERVER)));
+  await page.goto(origin + 'creer-societe.html');
+  await page.locator('#client-id').filter({ hasText: 'x' }).waitFor();
+  await page.fill('#server', 'https://evil.example/exec');
+  await page.click('#open');
+  await page.getByText('n’est pas celle d’un serveur Orbia').waitFor();
+  await page.screenshot({ path: shots + 'creer-societe-pc.png', fullPage: true });
+  await page.fill('#server', other.replace('/macros/s/', '/macros/u/3/s/'));
+  await page.click('#open');
+  await page.waitForURL(/#\/$/);
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('orbia.activeCompany')));
+  assert.equal(saved, other, 'adresse normalisée et choisie');
+  await page.evaluate((u) => localStorage.setItem('orbia.activeCompany', JSON.stringify(u)), SERVER);
+  await context.close();
+  assert.deepEqual(problems.filter((p) => !/Failed to load resource|ERR_/.test(p)), [], 'console sociétés');
 }
 
 // Toutes les pages : rendu sans erreur, sans chiffre inventé, sur PC et mobile

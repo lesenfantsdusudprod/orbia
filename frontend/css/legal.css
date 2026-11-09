@@ -8,3 +8,12 @@ h2 { font-size: 1.125rem; margin: 32px 0 8px; }
 .muted { color: #5D5F60; margin: 0; }
 a { color: #A8492B; }
 li { margin-bottom: 6px; }
+code { font-size: 0.875em; background: #F2ECDF; padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+pre { background: #FFFFFF; border: 1px solid #E4DCCB; border-radius: 10px; padding: 12px; overflow-x: auto; font-size: 0.8125rem; }
+table { width: 100%; border-collapse: collapse; font-size: 0.9375rem; }
+th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid #E4DCCB; vertical-align: top; }
+label { display: block; font-weight: 600; margin-bottom: 6px; }
+input { width: 100%; min-height: 48px; padding: 8px 12px; font: inherit; border: 1px solid #A9A08D; border-radius: 10px; background: #fff; box-sizing: border-box; }
+button { min-height: 48px; padding: 10px 18px; font: inherit; font-weight: 600; color: #fff; background: #A8492B; border: 0; border-radius: 10px; cursor: pointer; }
+:focus-visible { outline: 3px solid #C8623F; outline-offset: 2px; }
+ol li { margin-bottom: 8px; }

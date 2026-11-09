@@ -4,14 +4,16 @@ import { createHash, randomUUID } from 'node:crypto';
 import { readdirSync, readFileSync } from 'node:fs';
 
 export const CLIENT_ID = 'test-client.apps.googleusercontent.com';
+export const SERVER = 'https://script.google.com/macros/s/AKfycbTESTserverIdentifier0123/exec';
+export const nonceFor = (url) => createHash('sha256').update(url).digest('hex');
 const now = () => Math.floor(Date.now() / 1000);
 
 export function claimsFor(email, extra = {}) {
-  return { aud: CLIENT_ID, iss: 'https://accounts.google.com', sub: 'sub-' + email, email, email_verified: 'true', exp: String(now() + 3600), name: email.split('@')[0], ...extra };
+  return { aud: CLIENT_ID, iss: 'https://accounts.google.com', sub: 'sub-' + email, email, email_verified: 'true', exp: String(now() + 3600), nonce: nonceFor(SERVER), name: email.split('@')[0], ...extra };
 }
 
 export function createBackend({ props = {} } = {}) {
-  const store = { ORBIA_GOOGLE_CLIENT_ID: CLIENT_ID, ORBIA_BOOTSTRAP_ADMIN: 'admin@example.test', ...props };
+  const store = { ORBIA_GOOGLE_CLIENT_ID: CLIENT_ID, ORBIA_BOOTSTRAP_ADMIN: 'admin@example.test', ORBIA_PUBLIC_URL: SERVER, ...props };
   const cacheStore = new Map();
   const tokens = new Map();
   const state = { tokenCalls: 0, lockFree: true, tokeninfoStatus: null, logs: [] };
@@ -125,6 +127,7 @@ export function createBackend({ props = {} } = {}) {
   };
   const builder = (handler) => { const chain = { timeBased: () => chain, everyDays: () => chain, everyHours: () => chain, onMonthDay: () => chain, atHour: () => chain, create() { drive.triggers.push(handler); } }; return chain; };
   sandbox.ScriptApp = {
+    getService: () => ({ getUrl: () => state.serviceUrl || '' }),
     getProjectTriggers: () => drive.triggers.map((h) => ({ getHandlerFunction: () => h })),
     newTrigger: builder
   };

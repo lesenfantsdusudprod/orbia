@@ -1,5 +1,6 @@
 import { h, icon } from './dom.js';
 import { api, setTokenProvider, setAccessLostHandler } from './api.js';
+import * as companies from './companies.js';
 import { initAuth, renderSignIn, currentToken, clearToken, signOut } from './auth.js';
 import { upcomingView, moreView, companyView, usersView, logsView, storageView } from './views.js';
 import { homeView, PAGES, documentDetail } from './pages.js';
@@ -43,6 +44,22 @@ function showSignIn(text = 'Connectez-vous avec votre compte Google autorisé.')
   renderSignIn(gis, slot);
 }
 
+function switchTo(url) {
+  companies.select(url);
+  location.hash = '#/';
+  location.reload();
+}
+
+function companySwitcher() {
+  const current = companies.active();
+  const others = companies.list().filter((c) => c.url !== current.url);
+  return h('div', { class: 'switcher' },
+    h('p', { class: 'stat-note' }, 'Société'),
+    h('p', { class: 'row-title' }, current.name),
+    others.map((c) => h('button', { class: 'btn btn-ghost', onclick: () => switchTo(c.url) }, `Passer à ${c.name}`)),
+    h('a', { class: 'more-link', href: 'creer-societe.html' }, 'Créer une autre société'));
+}
+
 function shell() {
   const path = currentPath();
   const isActive = (s) => (s.path === '/' ? path === '/' : path.startsWith(s.path));
@@ -57,6 +74,7 @@ function shell() {
     h('summary', { 'aria-label': 'Compte' }, h('span', { class: 'avatar', 'aria-hidden': 'true' }, initials), h('span', { class: 'account-name' }, who)),
     h('div', { class: 'account-menu' },
       h('p', { class: 'muted' }, session.user.email),
+      companySwitcher(),
       h('button', { class: 'btn btn-ghost', onclick: logout }, 'Se déconnecter')));
 
   root.replaceChildren(h('div', { class: 'shell' },
@@ -131,13 +149,17 @@ function handleAccessLost(err) {
     } catch (e) { note.textContent = e.message; ask.disabled = false; }
   } }, 'Demander l’accès');
   const other = h('button', { class: 'btn btn-ghost', onclick: () => { signOut(); showSignIn(); } }, 'Utiliser un autre compte');
-  gate('Accès refusé', null, note, h('div', { class: 'form-foot' }, ask, other));
+  const others = companies.list().filter((c) => c.url !== companies.active().url);
+  gate('Accès refusé', `Société : ${companies.active().name}.`, note, h('div', { class: 'form-foot' }, ask, other),
+    others.length > 0 && h('div', { class: 'form-foot' }, others.map((c) => h('button', { class: 'btn btn-ghost', onclick: () => switchTo(c.url) }, `Aller sur ${c.name}`))),
+    h('a', { class: 'more-link', href: 'creer-societe.html' }, 'Créer ma propre société'));
 }
 
 async function loadSession() {
   gate('Connexion en cours');
   try {
     session = await api('session.get');
+    companies.rename(companies.active().url, session.company.legalName);
     render();
   } catch (err) {
     if (err.code === 'UNAUTHENTICATED' || err.code === 'NOT_ALLOWED') return;
@@ -157,13 +179,20 @@ function reportClientError(where, message) {
 }
 
 async function start() {
-  const { apiUrl, googleClientId } = window.ORBIA_CONFIG || {};
-  if (!apiUrl || !googleClientId) {
-    gate('Installation à terminer', 'L’adresse du serveur ou l’identifiant Google manque dans la configuration du site.');
+  const { googleClientId } = window.ORBIA_CONFIG || {};
+  try {
+    companies.takeInvitation();
+  } catch (err) {
+    gate('Lien d’invitation invalide', err.message, h('a', { class: 'btn btn-ghost', href: './' }, 'Continuer'));
+    return;
+  }
+  const company = companies.active();
+  if (!company || !googleClientId) {
+    gate('Aucune société', 'Ouvrez le lien d’invitation de votre société, ou créez la vôtre.', h('a', { class: 'btn', href: 'creer-societe.html' }, 'Créer ma société'));
     return;
   }
   try {
-    gis = await initAuth(loadSession);
+    gis = await initAuth(loadSession, await companies.serverNonce(company.url));
   } catch (err) {
     gate('Connexion Google indisponible', 'Le service de connexion n’a pas pu être chargé. Désactivez un éventuel bloqueur, puis réessayez.', retryButton());
     return;

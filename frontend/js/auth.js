@@ -7,15 +7,16 @@ const KEY = 'orbia.idToken';
 let token = null;
 let expiresAt = 0;
 let onSignedIn = () => {};
+let nonce = '';
 
-function decodeExp(jwt) {
+function claims(jwt) {
   try {
-    const payload = jwt.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
-    return Number(JSON.parse(atob(payload)).exp) * 1000;
+    return JSON.parse(atob(jwt.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
   } catch (err) {
-    return 0;
+    return {};
   }
 }
+const decodeExp = (jwt) => Number(claims(jwt).exp || 0) * 1000;
 
 function remember(value) {
   try {
@@ -38,7 +39,8 @@ function restore() {
 
 restore();
 
-export const currentToken = () => (Date.now() < expiresAt - 30000 ? token : null);
+/** Un jeton n'est valable que pour le serveur de la société choisie. */
+export const currentToken = () => (Date.now() < expiresAt - 30000 && claims(token).nonce === nonce ? token : null);
 
 function waitForGoogle(timeoutMs = 8000) {
   return new Promise((resolve, reject) => {
@@ -51,13 +53,15 @@ function waitForGoogle(timeoutMs = 8000) {
   });
 }
 
-export async function initAuth(callback) {
+export async function initAuth(callback, serverNonce) {
   onSignedIn = callback;
+  nonce = serverNonce;
   const gis = await waitForGoogle();
   gis.initialize({
     client_id: window.ORBIA_CONFIG.googleClientId,
     auto_select: true,
     use_fedcm_for_prompt: true,
+    nonce: serverNonce,
     callback: ({ credential }) => {
       token = credential;
       expiresAt = decodeExp(credential);

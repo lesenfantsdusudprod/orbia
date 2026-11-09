@@ -5,7 +5,7 @@
  * Aucun secret ni identifiant de ressource ici : tout passe par les propriétés de script.
  * Le dépôt peut être public.
  */
-const ORBIA_VERSION = '0.6.0-a4';
+const ORBIA_VERSION = '0.7.0';
 
 const PROP = Object.freeze({
   GOOGLE_CLIENT_ID: 'ORBIA_GOOGLE_CLIENT_ID',
@@ -21,6 +21,7 @@ const PROP = Object.freeze({
   LAST_BACKUP: 'ORBIA_LAST_BACKUP',
   LAST_RESTORE_TEST: 'ORBIA_LAST_RESTORE_TEST',
   BANK_MAPPINGS: 'ORBIA_BANK_MAPPINGS',
+  PUBLIC_URL: 'ORBIA_PUBLIC_URL',
   ACCESS_REQUESTS: 'ORBIA_ACCESS_REQUESTS',
   ANTHROPIC_KEY: 'ORBIA_ANTHROPIC_API_KEY',
   ANTHROPIC_MODEL: 'ORBIA_ANTHROPIC_MODEL'
@@ -1220,6 +1221,26 @@ function tokenCacheKey_(token) {
   return 'tok_' + Utilities.base64EncodeWebSafe(digest);
 }
 
+/** Adresse publique de ce serveur, sans le /u/N/ ajouté quand plusieurs comptes sont ouverts. */
+function serverUrl_() {
+  const saved = PropertiesService.getScriptProperties().getProperty(PROP.PUBLIC_URL);
+  let url = saved;
+  if (!url) {
+    try { url = ScriptApp.getService().getUrl(); } catch (err) { url = ''; }
+  }
+  return String(url || '').trim().replace(/\/macros\/u\/\d+\/s\//, '/macros/s/').replace(/\/dev$/, '/exec');
+}
+
+/**
+ * Tous les serveurs Orbia partagent le même identifiant Google. Le jeton porte donc
+ * l'empreinte du serveur visé : un serveur d'une autre société ne peut pas le rejouer ici.
+ */
+function checkNonce_(claims) {
+  const url = serverUrl_();
+  if (!url) throw ERR.notConfigured();
+  if (claims.nonce !== hexDigest_(url)) throw ERR.unauthenticated();
+}
+
 function checkClaims_(claims, clientId) {
   const now = Math.floor(Date.now() / 1000);
   const issuerOk = claims.iss === 'accounts.google.com' || claims.iss === 'https://accounts.google.com';
@@ -1259,6 +1280,7 @@ function authenticate_(token) {
   const cached = cache.get(key);
   const claims = cached ? JSON.parse(cached) : fetchClaims_(token);
   checkClaims_(claims, clientId);
+  checkNonce_(claims);
 
   if (!cached) {
     const remaining = Number(claims.exp) - Math.floor(Date.now() / 1000);
@@ -1655,7 +1677,7 @@ function doGet() {
  */
 function orbiaCheckSetup() {
   const props = PropertiesService.getScriptProperties();
-  const missing = [PROP.GOOGLE_CLIENT_ID, PROP.BOOTSTRAP_ADMIN].filter((key) => !props.getProperty(key));
+  const missing = [PROP.GOOGLE_CLIENT_ID, PROP.BOOTSTRAP_ADMIN, PROP.PUBLIC_URL].filter((key) => !props.getProperty(key));
   UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo?id_token=test', { muteHttpExceptions: true });
   // Vrai essai d'écriture : une simple lecture de Drive ne prouve pas le droit de créer.
   DriveApp.createFolder('Orbia - test d\u2019autorisation').setTrashed(true);

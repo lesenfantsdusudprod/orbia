@@ -8,6 +8,26 @@ function tokenCacheKey_(token) {
   return 'tok_' + Utilities.base64EncodeWebSafe(digest);
 }
 
+/** Adresse publique de ce serveur, sans le /u/N/ ajouté quand plusieurs comptes sont ouverts. */
+function serverUrl_() {
+  const saved = PropertiesService.getScriptProperties().getProperty(PROP.PUBLIC_URL);
+  let url = saved;
+  if (!url) {
+    try { url = ScriptApp.getService().getUrl(); } catch (err) { url = ''; }
+  }
+  return String(url || '').trim().replace(/\/macros\/u\/\d+\/s\//, '/macros/s/').replace(/\/dev$/, '/exec');
+}
+
+/**
+ * Tous les serveurs Orbia partagent le même identifiant Google. Le jeton porte donc
+ * l'empreinte du serveur visé : un serveur d'une autre société ne peut pas le rejouer ici.
+ */
+function checkNonce_(claims) {
+  const url = serverUrl_();
+  if (!url) throw ERR.notConfigured();
+  if (claims.nonce !== hexDigest_(url)) throw ERR.unauthenticated();
+}
+
 function checkClaims_(claims, clientId) {
   const now = Math.floor(Date.now() / 1000);
   const issuerOk = claims.iss === 'accounts.google.com' || claims.iss === 'https://accounts.google.com';
@@ -47,6 +67,7 @@ function authenticate_(token) {
   const cached = cache.get(key);
   const claims = cached ? JSON.parse(cached) : fetchClaims_(token);
   checkClaims_(claims, clientId);
+  checkNonce_(claims);
 
   if (!cached) {
     const remaining = Number(claims.exp) - Math.floor(Date.now() / 1000);

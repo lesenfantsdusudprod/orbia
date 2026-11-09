@@ -244,3 +244,6 @@ td.num, th.num { text-align: right; }
 /* Garde-fou si le bouton Google se dessine sans ses styles */
 .gate-action svg { width: 20px !important; height: 20px !important; }
 .gate-legal { font-size: 0.875rem; color: var(--ink-soft); }
+
+.switcher { display: grid; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
+.switcher .btn { min-height: 40px; }
