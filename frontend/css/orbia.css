@@ -232,3 +232,15 @@ td.num, th.num { text-align: right; }
 .drop .actions { width: min(100%, 420px); }
 .drop { align-content: start; }
 .drop.card { padding: 16px; }
+
+/* Écran de connexion */
+.gate { gap: 16px; }
+.gate .brand { font-size: clamp(3rem, 15vw, 4.25rem); }
+.gate-tagline { color: var(--ink-soft); margin-top: -8px; }
+.gate-card { width: 100%; display: grid; gap: 14px; justify-items: start; background: var(--white); border: 1px solid var(--line); border-radius: var(--radius-card); padding: 24px 20px; margin-top: 12px; }
+.gate-card h1 { font-size: 1.375rem; }
+.gate-card p { color: var(--ink-soft); }
+.gate-action { width: 100%; min-height: 44px; overflow: hidden; }
+/* Garde-fou si le bouton Google se dessine sans ses styles */
+.gate-action svg { width: 20px !important; height: 20px !important; }
+.gate-legal { font-size: 0.875rem; color: var(--ink-soft); }

@@ -25,9 +25,12 @@ const currentPath = () => location.hash.replace(/^#/, '') || '/';
 function gate(title, text, ...extra) {
   root.replaceChildren(h('main', { class: 'gate' },
     h('span', { class: 'brand' }, 'orbia'),
-    h('h1', {}, title),
-    text && h('p', {}, text),
-    ...extra));
+    h('p', { class: 'gate-tagline' }, 'La comptabilité des Enfants du Sud, au même endroit.'),
+    h('section', { class: 'gate-card' },
+      h('h1', {}, title),
+      text && h('p', {}, text),
+      ...extra),
+    h('a', { class: 'gate-legal', href: 'confidentialite.html' }, 'Règles de confidentialité')));
 }
 
 function retryButton() {
